@@ -688,7 +688,7 @@ with colA:
     st.caption("환영합니다 🙂")
 
 with colB:
-    if st.button("📌 나의 기록", use_container_width=True, key="btn_go_my"):
+    if st.button("📌 나의기록", use_container_width=True, key="btn_go_my"):
         st.session_state.page = "my"
         st.rerun()
 
