@@ -93,6 +93,19 @@ quiz_label_for_table = {"reading": "발음", "meaning": "뜻"}
 def auth_box():
     st.subheader("로그인")
 
+    # ✅ (추가) 이메일 컨펌 링크로 들어온 경우 감지 → 로그인 화면으로 유도
+    qp = st.query_params  # Streamlit 최신
+    # (구버전이면 아래로 대체)
+    # qp = st.experimental_get_query_params()
+
+    # Supabase가 컨펌/복구/매직링크 등에서 자주 붙이는 키들(프로젝트 설정에 따라 다름)
+    came_from_email_link = any(k in qp for k in ["code", "token", "type", "access_token", "refresh_token"])
+
+    if came_from_email_link and not st.session_state.get("email_link_notice_shown"):
+        st.session_state.email_link_notice_shown = True
+        st.session_state.auth_mode = "login"
+        st.success("이메일 인증(또는 링크 확인)이 완료되었습니다. 이제 로그인해 주세요.")
+    
     # ✅ 화면 모드 (로그인/회원가입) — 탭 대신 라디오
     if "auth_mode" not in st.session_state:
         st.session_state.auth_mode = "login"  # 기본은 로그인
