@@ -677,7 +677,7 @@ def render_my_dashboard():
                 use_container_width=True,
                 hide_index=True,
             )
-
+render_naver_talk()
 
 # ============================================================
 # ✅ 상단 헤더 (페이지/버튼)
