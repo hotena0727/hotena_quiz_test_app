@@ -600,15 +600,6 @@ with colD:
         ...
 
 
-with colA:
-    st.caption("환영합니다 🙂")
-
-with colB:
-    if is_admin():
-        if st.button("📊 관리자 대시보드", use_container_width=True):
-            st.session_state.page = "admin"
-            st.rerun()
-
 with colC:
     if st.button("🚪 로그아웃", use_container_width=True):
         try:
