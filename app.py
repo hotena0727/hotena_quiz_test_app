@@ -26,11 +26,20 @@ div.stButton>button {
 
 st.title("い형용사 퀴즈")
 
-📅 오늘의 목표
-☑ 퀴즈 1회 풀기 (10문항)
+# ✅ 연속 출석 배지 (상단 표시)
+streak = st.session_state.get("streak_count")
+did_today = st.session_state.get("did_attend_today")
 
-[ 오늘 완료 / 아직 미완료 ]
-🔥 연속 출석 3일째
+if streak is not None:
+    if did_today:
+        st.success(f"✅ 오늘 출석 완료!  (연속 {streak}일)")
+    else:
+        st.caption(f"연속 출석 {streak}일")
+
+    if streak >= 30:
+        st.info("🔥 30일 연속 달성! 진짜 레전드…")
+    elif streak >= 7:
+        st.info("🏅 7일 연속 달성! 흐름이 잡혔어요.")
 
 # ============================================================
 # ✅ Cookies
@@ -348,14 +357,47 @@ user_email = getattr(user, "email", None) or st.session_state.get("login_email")
 
 sb_authed = get_authed_sb()
 if sb_authed is not None:
+    att = mark_attendance_once(sb_authed)
+    if att:
+        st.session_state["streak_count"] = att.get("streak_count", 0)
+        st.session_state["did_attend_today"] = att.get("did_attend", False)
     try:
         ensure_profile(sb_authed, user)
     except Exception:
         pass
+
+refresh_session_from_cookie_if_needed(force=False)
+require_login()
+
+user = st.session_state.user
+user_id = user.id
+user_email = getattr(user, "email", None) or st.session_state.get("login_email")
+
+sb_authed = get_authed_sb()
+...
+
+# ✅ ✅ ✅ 여기 붙여넣기 (헤더 버튼 만들기 전에)
+# ============================================================
+# ✅ 오늘의 목표 / 출석 현황
+# ============================================================
+
   
 # ============================================================
 # ✅ DB 함수
 # ============================================================
+def mark_attendance_once(sb_authed):
+    # ✅ 오늘 한 번만 실행 (새로고침해도 중복 업데이트 방지)
+    if st.session_state.get("attendance_checked"):
+        return None
+
+    try:
+        res = sb_authed.rpc("mark_attendance_kst", {}).execute()
+        st.session_state.attendance_checked = True
+        return res.data[0] if res.data else None
+    except Exception:
+        st.session_state.attendance_checked = True
+        return None
+
 def save_attempt_to_db(sb_authed, user_id, user_email, level, quiz_type, quiz_len, score, wrong_list):
     payload = {
         "user_id": user_id,
