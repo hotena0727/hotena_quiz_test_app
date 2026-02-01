@@ -725,28 +725,54 @@ if st.session_state.page == "my":
 
 
 # ============================================================
-# ✅ CSV 로드
+# ✅ CSV 로드 (nan 방지 최종형)
 # ============================================================
 BASE_DIR = Path(__file__).resolve().parent
 CSV_PATH = BASE_DIR / "data" / "words_adj_300.csv"
 
-df = pd.read_csv(CSV_PATH)
+# ✅ 핵심: 빈칸/NaN 처리 일관화
+# - keep_default_na=False : 빈 문자열을 NaN으로 자동 변환하지 않음
+# - na_values : 혹시 CSV에 문자열로 들어간 'nan', 'NaN', 'NULL' 등을 NaN으로 인식
+READ_KW = dict(
+    dtype=str,
+    keep_default_na=False,
+    na_values=["nan", "NaN", "NULL", "null", "None", "none"],
+)
+
+df = pd.read_csv(CSV_PATH, **READ_KW)
+
+# 탭 파일 대비(한 컬럼으로 뭉친 경우)
 if len(df.columns) == 1 and "\t" in df.columns[0]:
-    df = pd.read_csv(CSV_PATH, sep="\t")
+    df = pd.read_csv(CSV_PATH, sep="\t", **READ_KW)
 
-df.columns = df.columns.astype(str).str.replace("\ufeff", "", regex=False).str.strip()
+# BOM/공백 정리
+df.columns = (
+    df.columns.astype(str)
+    .str.replace("\ufeff", "", regex=False)
+    .str.strip()
+)
 
-# ✅ nan 방지: 필수 값이 비어있는 행 제거 + 빈문자열도 제거
+# 필수 컬럼 체크
 required_cols = ["jp_word", "reading", "meaning", "level", "pos"]
 missing = [c for c in required_cols if c not in df.columns]
 if missing:
     st.error(f"CSV 컬럼이 부족합니다: {missing}")
     st.stop()
 
-df = df.dropna(subset=["jp_word", "reading", "meaning", "level", "pos"]).copy()
-for c in ["jp_word", "reading", "meaning", "level", "pos"]:
+# ✅ 값 정리: 공백 제거 + 'nan' 같은 문자열까지 제거
+for c in required_cols:
     df[c] = df[c].astype(str).str.strip()
-df = df[(df["jp_word"] != "") & (df["reading"] != "") & (df["meaning"] != "")]
+    # 문자열로 들어온 'nan' 제거(keep_default_na=False일 때 대비)
+    df[c] = df[c].replace({"nan": "", "NaN": "", "NULL": "", "null": "", "None": "", "none": ""})
+
+# ✅ 최종 필터: 빈 값 제거
+df = df[
+    (df["jp_word"] != "") &
+    (df["reading"] != "") &
+    (df["meaning"] != "") &
+    (df["level"] != "") &
+    (df["pos"] != "")
+].copy()
 
 pool = df[df["level"] == LEVEL].copy()
 pool_i = pool[pool["pos"] == "i_adj"].copy()
