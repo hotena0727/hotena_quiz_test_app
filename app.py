@@ -309,16 +309,15 @@ def save_attempt_to_db(sb_authed, user_id, user_email, level, quiz_type, quiz_le
     sb_authed.table("quiz_attempts").insert(payload).execute()
 
 
-def fetch_my_attempts(sb_authed, user_id, limit=200):
+def fetch_recent_attempts(sb_authed, user_id, limit=10):
     return (
         sb_authed.table("quiz_attempts")
-        .select("created_at, level, pos_mode, quiz_len, score, wrong_count, wrong_list")
+        .select("created_at, level, pos_mode, quiz_len, score, wrong_count")
         .eq("user_id", user_id)
         .order("created_at", desc=True)
         .limit(limit)
         .execute()
     )
-
 
 
 # ============================================================
@@ -479,99 +478,6 @@ def render_admin_dashboard():
     csv = df_admin.to_csv(index=False).encode("utf-8-sig")
     st.download_button("⬇️ CSV 다운로드", csv, file_name="quiz_attempts_admin.csv", use_container_width=True)
 
-def render_user_dashboard():
-    st.subheader("📈 내 학습 대시보드")
-
-    sb_authed_local = get_authed_sb()
-    if sb_authed_local is None:
-        st.warning("토큰(sb_authed)이 없습니다. 로그인 세션 토큰 확인이 필요합니다.")
-        st.stop()
-
-    # 돌아가기
-    if st.button("← 퀴즈로 돌아가기", use_container_width=True):
-        st.session_state.page = "quiz"
-        st.rerun()
-
-    try:
-        res = fetch_my_attempts(sb_authed_local, user_id, limit=200)
-    except Exception as e:
-        st.error("기록을 불러오지 못했습니다. (DB/RLS 확인 필요)")
-        st.exception(e)
-        st.stop()
-
-    if not res.data:
-        st.info("아직 저장된 기록이 없습니다. 퀴즈를 풀고 제출하면 기록이 쌓여요.")
-        return
-
-    hist = pd.DataFrame(res.data).copy()
-
-    # ✅ created_at: Supabase는 보통 UTC → KST로 변환
-    ts = pd.to_datetime(hist["created_at"], utc=True)
-    hist["created_at"] = ts.dt.tz_convert("Asia/Seoul").dt.tz_localize(None)
-
-    hist["유형"] = hist["pos_mode"].map(lambda x: quiz_label_for_table.get(x, x))
-    hist["정답률"] = (hist["score"] / hist["quiz_len"]).fillna(0)
-
-    # ===== 상단 요약 =====
-    avg_rate = float(hist["정답률"].mean() * 100)
-    best = int(hist["score"].max())
-    last_score = int(hist.iloc[0]["score"])
-    last_total = int(hist.iloc[0]["quiz_len"])
-    total_attempts = len(hist)
-
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("누적 기록", f"{total_attempts}회")
-    c2.metric("최근 평균", f"{avg_rate:.0f}%")
-    c3.metric("최고 점수", f"{best} / {N}")
-    c4.metric("최근 점수", f"{last_score} / {last_total}")
-
-    st.divider()
-
-    # ===== 기록 리스트 =====
-    st.markdown("### 🗂️ 최근 기록")
-    show = hist.rename(columns={
-        "created_at": "일시",
-        "level": "레벨",
-        "quiz_len": "문항",
-        "score": "점수",
-        "wrong_count": "오답",
-    })
-    show["일시"] = pd.to_datetime(show["일시"]).dt.strftime("%Y-%m-%d %H:%M")
-
-    st.dataframe(
-        show[["일시", "레벨", "유형", "문항", "점수", "오답"]],
-        use_container_width=True,
-        hide_index=True,
-    )
-
-    # ===== 오답 TOP (wrong_list 집계) =====
-    st.divider()
-    st.markdown("### ❌ 자주 틀리는 단어 TOP 10 (최근 200회 기준)")
-
-    from collections import Counter
-
-    counter = Counter()
-    for wl in hist["wrong_list"].dropna().tolist():
-        # wrong_list는 list[dict] 형태를 기대
-        if isinstance(wl, list):
-            for item in wl:
-                if isinstance(item, dict):
-                    w = item.get("단어") or item.get("jp_word")
-                    if w:
-                        counter[w] += 1
-
-    if not counter:
-        st.info("오답 상세(wrong_list)가 없거나 아직 집계할 데이터가 없습니다.")
-    else:
-        top10 = counter.most_common(10)
-        for rank, (word, cnt) in enumerate(top10, start=1):
-            st.write(f"{rank}. **{word}** — {cnt}회")
-
-    # ===== CSV 다운로드 =====
-    st.divider()
-    csv = show.to_csv(index=False).encode("utf-8-sig")
-    st.download_button("⬇️ 내 기록 CSV 다운로드", csv, file_name="my_quiz_attempts.csv", use_container_width=True)
-
 
 # ============================================================
 # ✅ 상단 UI (로그인 표시 + 관리자 버튼 + 로그아웃)
@@ -579,26 +485,7 @@ def render_user_dashboard():
 if "page" not in st.session_state:
     st.session_state.page = "quiz"
 
-colA, colB, colC, colD = st.columns([5, 2, 2, 3])
-
-with colA:
-    st.caption("환영합니다 🙂")
-
-with colB:
-    if st.button("📈 내 기록", use_container_width=True):
-        st.session_state.page = "me"
-        st.rerun()
-
-with colC:
-    if is_admin():
-        if st.button("📊 관리자 대시보드", use_container_width=True):
-            st.session_state.page = "admin"
-            st.rerun()
-
-with colD:
-    if st.button("🚪 로그아웃", use_container_width=True):
-        ...
-
+colA, colB, colC = st.columns([5, 2, 3])
 
 with colA:
     st.caption("환영합니다 🙂")
@@ -642,11 +529,6 @@ with colC:
 if st.session_state.get("page") == "admin":
     render_admin_dashboard()
     st.stop()
-
-if st.session_state.get("page") == "me":
-    render_user_dashboard()
-    st.stop()
-
 
 
 # ============================================================
