@@ -7,19 +7,7 @@ from streamlit_cookies_manager import EncryptedCookieManager
 
 
 # ============================================================
-# ✅ Cookies
-# ============================================================
-cookies = EncryptedCookieManager(
-    prefix="hatena_jlpt/",
-    password=st.secrets.get("COOKIE_PASSWORD", "change-me-please")
-)
-if not cookies.ready():
-    st.info("쿠키를 초기화하는 중입니다… 잠시 후 자동으로 다시 시도됩니다.")
-    st.stop()
-
-
-# ============================================================
-# ✅ Streamlit 기본 설정
+# ✅ Streamlit 기본 설정 (최상단)
 # ============================================================
 st.set_page_config(page_title="JLPT Quiz", layout="centered")
 
@@ -35,6 +23,18 @@ st.title("い형용사 퀴즈")
 
 
 # ============================================================
+# ✅ Cookies
+# ============================================================
+cookies = EncryptedCookieManager(
+    prefix="hatena_jlpt/",
+    password=st.secrets.get("COOKIE_PASSWORD", "change-me-please")
+)
+if not cookies.ready():
+    st.info("쿠키를 초기화하는 중입니다… 잠시 후 자동으로 다시 시도됩니다.")
+    st.stop()
+
+
+# ============================================================
 # ✅ Supabase 연결
 # ============================================================
 if "SUPABASE_URL" not in st.secrets or "SUPABASE_ANON_KEY" not in st.secrets:
@@ -44,18 +44,8 @@ if "SUPABASE_URL" not in st.secrets or "SUPABASE_ANON_KEY" not in st.secrets:
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_ANON_KEY = st.secrets["SUPABASE_ANON_KEY"]
 
-# anon client (로그인/회원가입용)
+# anon client (로그인/회원가입 + refresh_session 용)
 sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-
-
-def get_authed_sb():
-    """✅ RLS 통과용: access_token을 PostgREST에 붙인 클라이언트"""
-    token = st.session_state.get("access_token")
-    if not token:
-        return None
-    sb2 = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-    sb2.postgrest.auth(token)
-    return sb2
 
 
 # ============================================================
@@ -69,6 +59,117 @@ N = 10
 quiz_label_map = {"reading": "발음", "meaning": "뜻"}
 quiz_label_for_table = {"reading": "발음", "meaning": "뜻"}
 
+KST_TZ = "Asia/Seoul"
+
+
+# ============================================================
+# ✅ 유틸: JWT 만료 감지 + 세션 갱신 + DB 호출 래퍼
+# ============================================================
+def is_jwt_expired_error(e: Exception) -> bool:
+    msg = str(e).lower()
+    return ("jwt expired" in msg) or ("pgrst303" in msg)
+
+
+def clear_auth_everywhere():
+    # 쿠키 정리
+    try:
+        cookies["access_token"] = ""
+        cookies["refresh_token"] = ""
+        cookies.save()
+    except Exception:
+        pass
+
+    # 세션 정리
+    for k in [
+        "user", "access_token", "refresh_token",
+        "login_email", "email_link_notice_shown",
+        "auth_mode", "signup_done", "last_signup_ts",
+        "page",
+        "quiz", "answers", "submitted", "wrong_list",
+        "quiz_version", "quiz_type", "saved_this_attempt",
+        "history", "wrong_counter", "total_counter",
+    ]:
+        st.session_state.pop(k, None)
+
+
+def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
+    """
+    ✅ refresh_token으로 access_token 갱신
+    - force=True면 무조건 refresh 시도
+    """
+    if not force and st.session_state.get("user") and st.session_state.get("access_token"):
+        return True
+
+    rt = cookies.get("refresh_token")
+    if not rt:
+        return False
+
+    try:
+        refreshed = sb.auth.refresh_session(rt)
+        if not refreshed or not refreshed.session:
+            return False
+
+        st.session_state.user = refreshed.user
+        st.session_state.access_token = refreshed.session.access_token
+        st.session_state.refresh_token = refreshed.session.refresh_token
+
+        # login_email fallback
+        u_email = getattr(refreshed.user, "email", None)
+        if u_email:
+            st.session_state["login_email"] = u_email.strip()
+
+        cookies["access_token"] = refreshed.session.access_token
+        cookies["refresh_token"] = refreshed.session.refresh_token
+        cookies.save()
+        return True
+
+    except Exception:
+        return False
+
+
+def get_authed_sb():
+    """
+    ✅ RLS 통과용: access_token을 PostgREST에 붙인 클라이언트
+    - 토큰 없으면 쿠키 refresh 시도
+    """
+    if not st.session_state.get("access_token"):
+        refresh_session_from_cookie_if_needed(force=True)
+
+    token = st.session_state.get("access_token")
+    if not token:
+        return None
+
+    sb2 = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    sb2.postgrest.auth(token)
+    return sb2
+
+
+def run_db(callable_fn):
+    """
+    ✅ DB 호출 래퍼:
+    - JWT expired면 refresh → rerun (사용자에게 에러 노출 X)
+    """
+    try:
+        return callable_fn()
+    except Exception as e:
+        if is_jwt_expired_error(e):
+            ok = refresh_session_from_cookie_if_needed(force=True)
+            if ok:
+                st.rerun()
+            # refresh가 실패면 깔끔하게 로그아웃 처리
+            clear_auth_everywhere()
+            st.warning("세션이 만료되었습니다. 다시 로그인해 주세요.")
+            st.rerun()
+        raise
+
+
+def to_kst_naive(series_or_value):
+    """
+    created_at(UTC) -> KST -> timezone 제거(표시용)
+    """
+    ts = pd.to_datetime(series_or_value, utc=True, errors="coerce")
+    return ts.dt.tz_convert(KST_TZ).dt.tz_localize(None)
+
 
 # ============================================================
 # ✅ Admin 설정
@@ -79,7 +180,6 @@ def get_admin_email_set() -> set[str]:
 
 
 def is_admin() -> bool:
-    # ✅ user.email이 없을 때 login_email로도 판별
     u = st.session_state.get("user")
     email = getattr(u, "email", None) if u else None
     if not email:
@@ -95,7 +195,6 @@ def is_admin() -> bool:
 def auth_box():
     st.subheader("로그인")
 
-    # 이메일 컨펌/매직링크 등으로 들어온 경우 감지
     qp = st.query_params
     came_from_email_link = any(k in qp for k in ["code", "token", "type", "access_token", "refresh_token"])
     if came_from_email_link and not st.session_state.get("email_link_notice_shown"):
@@ -120,14 +219,11 @@ def auth_box():
         st.success("회원가입 요청 완료! 이메일 인증이 필요할 수 있어요. 메일함을 확인한 뒤 로그인해 주세요.")
         st.session_state.signup_done = False
 
-    # ----------------------------
-    # 로그인
-    # ----------------------------
     if mode == "login":
-        email = st.text_input("이메일", key="login_email")
-        pw = st.text_input("비밀번호", type="password", key="login_pw")
+        email = st.text_input("이메일", key="login_email_input")
+        pw = st.text_input("비밀번호", type="password", key="login_pw_input")
 
-        if st.button("로그인", use_container_width=True):
+        if st.button("로그인", use_container_width=True, key="btn_login"):
             if not email or not pw:
                 st.warning("이메일과 비밀번호를 입력해주세요.")
                 st.stop()
@@ -136,7 +232,7 @@ def auth_box():
                 res = sb.auth.sign_in_with_password({"email": email, "password": pw})
 
                 st.session_state.user = res.user
-                st.session_state["login_email"] = email.strip()  # ✅ 중요: fallback용
+                st.session_state["login_email"] = email.strip()
 
                 if res.session and res.session.access_token:
                     st.session_state.access_token = res.session.access_token
@@ -157,9 +253,6 @@ def auth_box():
                 st.error("로그인 실패: 이메일/비밀번호 또는 이메일 인증 상태를 확인해주세요.")
                 st.stop()
 
-    # ----------------------------
-    # 회원가입
-    # ----------------------------
     else:
         email = st.text_input("이메일", key="signup_email")
         pw = st.text_input("비밀번호", type="password", key="signup_pw")
@@ -172,12 +265,7 @@ def auth_box():
         if pw and not pw_ok:
             st.warning(f"비밀번호가 너무 짧습니다. (현재 {pw_len}자) 8자리 이상으로 입력해 주세요.")
 
-        if st.button(
-            "회원가입",
-            use_container_width=True,
-            disabled=not (email_ok and pw_ok),
-            key="signup_btn",
-        ):
+        if st.button("회원가입", use_container_width=True, disabled=not (email_ok and pw_ok), key="btn_signup"):
             try:
                 import time
                 last = st.session_state.get("last_signup_ts", 0.0)
@@ -214,58 +302,16 @@ def auth_box():
                 st.stop()
 
 
-# ============================================================
-# ✅ 쿠키로 세션 복원
-# ============================================================
-def restore_session_from_cookies():
-    if st.session_state.get("user") and st.session_state.get("access_token"):
-        return
-
-    rt = cookies.get("refresh_token")
-    if not rt:
-        return
-
-    try:
-        refreshed = sb.auth.refresh_session(rt)
-        if not refreshed or not refreshed.session:
-            # refresh_token이 invalid인 경우 쿠키 정리(선택)
-            cookies["access_token"] = ""
-            cookies["refresh_token"] = ""
-            cookies.save()
-            return
-
-        st.session_state.user = refreshed.user
-        st.session_state.access_token = refreshed.session.access_token
-        st.session_state.refresh_token = refreshed.session.refresh_token
-
-        # login_email fallback용(가능하면 채워둠)
-        u_email = getattr(refreshed.user, "email", None)
-        if u_email:
-            st.session_state["login_email"] = u_email.strip()
-
-        cookies["access_token"] = refreshed.session.access_token
-        cookies["refresh_token"] = refreshed.session.refresh_token
-        cookies.save()
-
-    except Exception:
-        # refresh 실패 시 쿠키 정리(선택)
-        try:
-            cookies["access_token"] = ""
-            cookies["refresh_token"] = ""
-            cookies.save()
-        except Exception:
-            pass
-        return
-
-
 def require_login():
     if "user" not in st.session_state or st.session_state.user is None:
         auth_box()
         st.stop()
 
 
+# ============================================================
+# ✅ profiles upsert (선택)
+# ============================================================
 def ensure_profile(sb_authed, user):
-    """profiles에 (id, email) upsert"""
     try:
         sb_authed.table("profiles").upsert({
             "id": user.id,
@@ -276,24 +322,26 @@ def ensure_profile(sb_authed, user):
 
 
 # ============================================================
-# ✅ 앱 시작: 쿠키 복원 → 로그인 강제
+# ✅ 앱 시작: refresh 시도 → 로그인 강제
 # ============================================================
-restore_session_from_cookies()
+refresh_session_from_cookie_if_needed(force=False)
 require_login()
 
 user = st.session_state.user
 user_id = user.id
-
-# ✅ user_email 안정적으로 확보
 user_email = getattr(user, "email", None) or st.session_state.get("login_email")
 
 sb_authed = get_authed_sb()
 if sb_authed is not None:
-    ensure_profile(sb_authed, user)
+    # DB가 막혀도 앱은 계속 돌아가게 run_db로 감싸지 않음(실패해도 무시)
+    try:
+        ensure_profile(sb_authed, user)
+    except Exception:
+        pass
 
 
 # ============================================================
-# ✅ DB 저장/조회 함수
+# ✅ DB 함수
 # ============================================================
 def save_attempt_to_db(sb_authed, user_id, user_email, level, quiz_type, quiz_len, score, wrong_list):
     payload = {
@@ -314,6 +362,16 @@ def fetch_recent_attempts(sb_authed, user_id, limit=10):
         sb_authed.table("quiz_attempts")
         .select("created_at, level, pos_mode, quiz_len, score, wrong_count")
         .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+
+
+def fetch_all_attempts_admin(sb_authed, limit=500):
+    return (
+        sb_authed.table("quiz_attempts")
+        .select("created_at, user_email, level, pos_mode, quiz_len, score, wrong_count")
         .order("created_at", desc=True)
         .limit(limit)
         .execute()
@@ -424,7 +482,7 @@ def render_naver_talk():
 
 
 # ============================================================
-# ✅ 관리자 대시보드 (단 1개만 존재)
+# ✅ 관리자 대시보드
 # ============================================================
 def render_admin_dashboard():
     st.subheader("📊 관리자 대시보드")
@@ -434,30 +492,30 @@ def render_admin_dashboard():
         st.session_state.page = "quiz"
         st.stop()
 
-    if st.button("← 퀴즈로 돌아가기", use_container_width=True):
+    if st.button("← 돌아가기", use_container_width=True, key="btn_admin_back"):
         st.session_state.page = "quiz"
         st.rerun()
 
     sb_authed_local = get_authed_sb()
     if sb_authed_local is None:
-        st.warning("토큰(sb_authed)이 없습니다. 로그인 세션 토큰 확인이 필요합니다.")
-        st.stop()
+        st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
+        return
+
+    show_debug = st.toggle("디버그 정보 표시", value=False, key="toggle_admin_debug")
+
+    def _fetch():
+        return fetch_all_attempts_admin(sb_authed_local, limit=500)
 
     try:
-        res = (
-            sb_authed_local.table("quiz_attempts")
-            .select("created_at, user_email, level, pos_mode, quiz_len, score, wrong_count")
-            .order("created_at", desc=True)
-            .limit(500)
-            .execute()
-        )
-        rows = len(res.data) if getattr(res, "data", None) else 0
-        st.caption(f"DEBUG: quiz_attempts rows = {rows}")
-
+        res = run_db(_fetch)
     except Exception as e:
         st.error("❌ 관리자 조회 실패 (RLS/권한/테이블/컬럼 확인 필요)")
-        st.exception(e)
-        st.stop()
+        st.write(str(e))
+        return
+
+    rows = len(res.data) if getattr(res, "data", None) else 0
+    if show_debug:
+        st.caption(f"DEBUG: quiz_attempts rows = {rows}")
 
     if rows <= 0:
         st.info("데이터가 없거나 RLS 정책 때문에 전체 조회가 막혀 있습니다.")
@@ -466,8 +524,7 @@ def render_admin_dashboard():
         return
 
     df_admin = pd.DataFrame(res.data).copy()
-    ts = pd.to_datetime(df_admin["created_at"], utc=True)
-    df_admin["created_at"] = ts.dt.tz_convert("Asia/Seoul").dt.tz_localize(None)
+    df_admin["created_at"] = to_kst_naive(df_admin["created_at"])
 
     c1, c2, c3 = st.columns(3)
     c1.metric("최근 500건", rows)
@@ -477,58 +534,186 @@ def render_admin_dashboard():
     st.dataframe(df_admin, use_container_width=True, hide_index=True)
 
     csv = df_admin.to_csv(index=False).encode("utf-8-sig")
-    st.download_button("⬇️ CSV 다운로드", csv, file_name="quiz_attempts_admin.csv", use_container_width=True)
+    st.download_button("⬇️ CSV 다운로드", csv, file_name="quiz_attempts_admin.csv", use_container_width=True, key="btn_admin_csv")
 
 
 # ============================================================
-# ✅ 상단 UI (로그인 표시 + 관리자 버튼 + 로그아웃)
+# ✅ 내 대시보드 (유저용)
+# ============================================================
+def render_my_dashboard():
+    st.subheader("📌 내 대시보드")
+
+    if st.button("← 돌아가기", use_container_width=True, key="btn_my_back"):
+        st.session_state.page = "quiz"
+        st.rerun()
+
+    sb_authed_local = get_authed_sb()
+    if sb_authed_local is None:
+        st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
+        return
+
+    def _fetch():
+        return fetch_recent_attempts(sb_authed_local, user_id, limit=50)
+
+    try:
+        res = run_db(_fetch)
+    except Exception as e:
+        st.info("기록을 불러오지 못했습니다.")
+        st.write(str(e))
+        return
+
+    if not res.data:
+        st.info("아직 저장된 기록이 없습니다. 문제를 풀고 제출하면 기록이 쌓여요.")
+        return
+
+    hist = pd.DataFrame(res.data).copy()
+    hist["created_at"] = to_kst_naive(hist["created_at"])
+    hist["유형"] = hist["pos_mode"].map(lambda x: quiz_label_for_table.get(x, x))
+    hist["정답률"] = (hist["score"] / hist["quiz_len"]).fillna(0.0)
+
+    avg_rate = float(hist["정답률"].mean() * 100)
+    best = int(hist["score"].max())
+    last_score = int(hist.iloc[0]["score"])
+    last_total = int(hist.iloc[0]["quiz_len"])
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("최근 평균(최대 50회)", f"{avg_rate:.0f}%")
+    c2.metric("최고 점수", f"{best} / {N}")
+    c3.metric("최근 점수", f"{last_score} / {last_total}")
+
+    st.divider()
+    st.markdown("### 최근 기록")
+
+    # 카드형
+    st.markdown("""
+<style>
+.record-card{
+  border: 1px solid rgba(120,120,120,0.25);
+  border-radius: 16px;
+  padding: 14px 14px;
+  margin-bottom: 10px;
+  background: rgba(255,255,255,0.02);
+}
+.record-top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom: 8px;
+}
+.record-title{
+  font-weight: 800;
+  font-size: 16px;
+}
+.record-sub{
+  opacity: 0.75;
+  font-size: 12px;
+}
+.pill{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid rgba(120,120,120,0.25);
+  background: rgba(255,255,255,0.03);
+}
+</style>
+""", unsafe_allow_html=True)
+
+    for _, r in hist.head(15).iterrows():
+        dt = pd.to_datetime(r["created_at"]).strftime("%Y-%m-%d %H:%M")
+        mode = r["유형"]
+        score_i = int(r["score"])
+        total = int(r["quiz_len"])
+        wrong = int(r["wrong_count"])
+        pct = float(r["정답률"] * 100)
+
+        if pct >= 90:
+            badge = "🏆"
+        elif pct >= 70:
+            badge = "👍"
+        else:
+            badge = "💪"
+
+        st.markdown(
+            f"""
+<div class="record-card">
+  <div class="record-top">
+    <div>
+      <div class="record-title">{badge} {score_i} / {total}</div>
+      <div class="record-sub">{dt} · {mode} · 레벨 {LEVEL}</div>
+    </div>
+    <div class="pill">오답 {wrong}개</div>
+  </div>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+        st.progress(min(max(pct / 100.0, 0.0), 1.0))
+        st.caption(f"정답률 {pct:.0f}%")
+        st.write("")
+
+    with st.expander("표로 보기"):
+        show = hist.rename(columns={
+            "created_at": "일시",
+            "level": "레벨",
+            "pos_mode": "quiz_type(원값)",
+            "quiz_len": "문항",
+            "score": "점수",
+            "wrong_count": "오답",
+        })
+        show["일시"] = pd.to_datetime(show["일시"]).dt.strftime("%Y-%m-%d %H:%M")
+        st.dataframe(
+            show[["일시", "레벨", "유형", "문항", "점수", "오답", "quiz_type(원값)"]],
+            use_container_width=True,
+            hide_index=True,
+        )
+
+
+# ============================================================
+# ✅ 상단 헤더 (페이지/버튼)
 # ============================================================
 if "page" not in st.session_state:
-    st.session_state.page = "quiz"
+    st.session_state.page = "quiz"  # quiz | my | admin
 
-colA, colB, colC = st.columns([5, 2, 3])
+colA, colB, colC, colD = st.columns([5, 2, 2, 3])
 
 with colA:
     st.caption("환영합니다 🙂")
 
 with colB:
+    if st.button("📌 내 대시보드", use_container_width=True, key="btn_go_my"):
+        st.session_state.page = "my"
+        st.rerun()
+
+with colC:
     if is_admin():
-        if st.button("📊 관리자 대시보드", use_container_width=True):
+        if st.button("📊 관리자", use_container_width=True, key="btn_go_admin"):
             st.session_state.page = "admin"
             st.rerun()
 
-with colC:
-    if st.button("🚪 로그아웃", use_container_width=True):
+with colD:
+    if st.button("🚪 로그아웃", use_container_width=True, key="btn_logout"):
         try:
             sb.auth.sign_out()
         except Exception:
             pass
-
-        try:
-            cookies["access_token"] = ""
-            cookies["refresh_token"] = ""
-            cookies.save()
-        except Exception:
-            pass
-
-        for k in [
-            "user", "access_token", "refresh_token",
-            "quiz", "answers", "submitted", "wrong_list",
-            "quiz_version", "quiz_type", "saved_this_attempt",
-            "history", "wrong_counter", "total_counter",
-            "page", "login_email", "email_link_notice_shown",
-            "auth_mode", "signup_done", "last_signup_ts",
-        ]:
-            st.session_state.pop(k, None)
-
+        clear_auth_everywhere()
         st.rerun()
 
 
 # ============================================================
-# ✅ 페이지 라우팅
+# ✅ 라우팅
 # ============================================================
-if st.session_state.get("page") == "admin":
+if st.session_state.page == "admin":
     render_admin_dashboard()
+    st.stop()
+
+if st.session_state.page == "my":
+    render_my_dashboard()
     st.stop()
 
 
@@ -622,6 +807,7 @@ if "wrong_list" not in st.session_state:
 if "saved_this_attempt" not in st.session_state:
     st.session_state.saved_this_attempt = False
 
+# 누적(세션) 통계
 if "history" not in st.session_state:
     st.session_state.history = []
 if "wrong_counter" not in st.session_state:
@@ -642,6 +828,7 @@ selected = st.radio(
     format_func=lambda x: quiz_label_map[x],
     horizontal=True,
     index=["reading", "meaning"].index(st.session_state.quiz_type),
+    key="radio_quiz_type",
 )
 
 if selected != st.session_state.quiz_type:
@@ -658,7 +845,7 @@ st.divider()
 
 col1, col2 = st.columns(2)
 with col1:
-    if st.button("🔄 새 문제(랜덤 10문항)", use_container_width=True):
+    if st.button("🔄 새 문제(랜덤 10문항)", use_container_width=True, key="btn_new_quiz"):
         st.session_state.quiz = build_quiz(st.session_state.quiz_type)
         st.session_state.submitted = False
         st.session_state.wrong_list = []
@@ -667,7 +854,7 @@ with col1:
         st.rerun()
 
 with col2:
-    if st.button("🧹 선택 초기화", use_container_width=True):
+    if st.button("🧹 선택 초기화", use_container_width=True, key="btn_reset_choice"):
         st.session_state.submitted = False
         st.session_state.quiz_version += 1
         st.rerun()
@@ -708,7 +895,7 @@ for idx, q in enumerate(st.session_state.quiz):
 # ============================================================
 all_answered = all(a is not None for a in st.session_state.answers)
 
-if st.button("✅ 제출하고 채점하기", disabled=not all_answered, type="primary", use_container_width=True):
+if st.button("✅ 제출하고 채점하기", disabled=not all_answered, type="primary", use_container_width=True, key="btn_submit"):
     st.session_state.submitted = True
 
 if not all_answered:
@@ -752,11 +939,12 @@ if st.session_state.submitted:
 
     sb_authed_local = get_authed_sb()
     if sb_authed_local is None:
-        st.warning("DB 저장/조회용 토큰이 없습니다. (로그인 세션 토큰 확인 필요)")
+        st.warning("DB 저장/조회용 토큰이 없습니다. 다시 로그인해 주세요.")
     else:
+        # ✅ DB 저장(한 번만) - JWT expired면 자동 refresh+rerrun
         if not st.session_state.saved_this_attempt:
-            try:
-                save_attempt_to_db(
+            def _save():
+                return save_attempt_to_db(
                     sb_authed=sb_authed_local,
                     user_id=user_id,
                     user_email=user_email,
@@ -766,25 +954,29 @@ if st.session_state.submitted:
                     score=score,
                     wrong_list=wrong_list,
                 )
+
+            try:
+                run_db(_save)
                 st.session_state.saved_this_attempt = True
             except Exception as e:
                 st.warning("DB 저장에 실패했습니다. (테이블/컬럼/권한/RLS 정책 확인 필요)")
-                st.write(getattr(e, "args", e))
+                st.write(str(e))
 
+        # ✅ 최근 기록
         st.subheader("📌 내 최근 기록")
 
-        try:
-            res = fetch_recent_attempts(sb_authed_local, user_id, limit=10)
+        def _fetch_hist():
+            return fetch_recent_attempts(sb_authed_local, user_id, limit=10)
 
+        try:
+            res = run_db(_fetch_hist)
             if not res.data:
                 st.info("아직 저장된 기록이 없습니다. 문제를 풀고 제출하면 기록이 쌓여요.")
             else:
                 hist = pd.DataFrame(res.data).copy()
-                ts = pd.to_datetime(hist["created_at"], utc=True)
-                hist["created_at"] = ts.dt.tz_convert("Asia/Seoul").dt.tz_localize(None)
-
+                hist["created_at"] = to_kst_naive(hist["created_at"])
                 hist["유형"] = hist["pos_mode"].map(lambda x: quiz_label_for_table.get(x, x))
-                hist["정답률"] = (hist["score"] / hist["quiz_len"]).fillna(0)
+                hist["정답률"] = (hist["score"] / hist["quiz_len"]).fillna(0.0)
 
                 avg_rate = float(hist["정답률"].mean() * 100)
                 best = int(hist["score"].max())
@@ -797,10 +989,10 @@ if st.session_state.submitted:
                 c3.metric("최근 점수", f"{last_score} / {last_total}")
 
         except Exception as e:
-            st.info("기록을 불러오지 못했습니다. (DB/RLS 확인 필요)")
-            st.write(getattr(e, "args", e))
+            st.info("기록을 불러오지 못했습니다.")
+            st.write(str(e))
 
-    # 세션 누적 통계
+    # ✅ 세션 누적 통계(원래 기능 유지)
     st.session_state.history.append({"type": st.session_state.quiz_type, "score": score, "total": quiz_len})
 
     for idx, q in enumerate(st.session_state.quiz):
@@ -809,10 +1001,11 @@ if st.session_state.submitted:
         if st.session_state.answers[idx] != q["correct_text"]:
             st.session_state.wrong_counter[word] = st.session_state.wrong_counter.get(word, 0) + 1
 
+    # ✅ 오답 있을 때만: 오답 재도전
     if st.session_state.wrong_list:
         st.subheader("❌ 오답 노트")
 
-        if st.button("❌ 틀린 문제만 다시 풀기", type="primary", use_container_width=True, key="retry_wrong"):
+        if st.button("❌ 틀린 문제만 다시 풀기", type="primary", use_container_width=True, key="btn_retry_wrong"):
             st.session_state.quiz = build_quiz_from_wrongs(st.session_state.wrong_list, st.session_state.quiz_type)
             st.session_state.submitted = False
             st.session_state.wrong_list = []
@@ -820,6 +1013,7 @@ if st.session_state.submitted:
             st.session_state.quiz_version += 1
             st.rerun()
 
+    # ✅ 누적 현황(이번 세션)
     st.divider()
     st.subheader("📊 누적 학습 현황 (이번 세션)")
 
@@ -841,10 +1035,11 @@ if st.session_state.submitted:
     else:
         st.info("아직 오답 누적 데이터가 없습니다.")
 
-    if st.button("🗑️ 누적 기록 초기화", use_container_width=True):
+    if st.button("🗑️ 누적 기록 초기화", use_container_width=True, key="btn_reset_session_stats"):
         st.session_state.history = []
         st.session_state.wrong_counter = {}
         st.session_state.total_counter = {}
         st.rerun()
 
+    # ✅ 제출 후 상담 배너
     render_naver_talk()
