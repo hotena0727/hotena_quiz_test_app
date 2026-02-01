@@ -635,12 +635,7 @@ def render_my_dashboard():
         wrong = int(r["wrong_count"])
         pct = float(r["정답률"] * 100)
 
-        if pct >= 90:
-            badge = "🏆"
-        elif pct >= 70:
-            badge = "👍"
-        else:
-            badge = "💪"
+        badge = "🏆" if pct >= 90 else ("👍" if pct >= 70 else "💪")
 
         st.markdown(
             f"""
@@ -660,7 +655,6 @@ def render_my_dashboard():
         st.caption(f"정답률 {pct:.0f}%")
         st.write("")
 
-    # ✅ 관리자만 '표로 보기' 노출
     if is_admin():
         with st.expander("표로 보기"):
             show = hist.rename(columns={
@@ -685,7 +679,6 @@ def render_my_dashboard():
 if "page" not in st.session_state:
     st.session_state.page = "quiz"  # quiz | my | admin
 
-# ✅ 버튼 줄바꿈 완화: 기록 버튼 칼럼을 넉넉하게
 colA, colB, colC, colD = st.columns([7, 3, 2, 3])
 
 with colA:
@@ -736,47 +729,72 @@ if len(df.columns) == 1 and "\t" in df.columns[0]:
 
 df.columns = df.columns.astype(str).str.replace("\ufeff", "", regex=False).str.strip()
 
-# ✅ nan 방지: 필수 값이 비어있는 행 제거 + 빈문자열도 제거
 required_cols = ["jp_word", "reading", "meaning", "level", "pos"]
 missing = [c for c in required_cols if c not in df.columns]
 if missing:
     st.error(f"CSV 컬럼이 부족합니다: {missing}")
     st.stop()
 
-df = df.dropna(subset=["jp_word", "reading", "meaning", "level", "pos"]).copy()
-for c in ["jp_word", "reading", "meaning", "level", "pos"]:
+# ✅ jp_word는 비어도 OK. reading/meaning/level/pos는 필수
+df = df.dropna(subset=["reading", "meaning", "level", "pos"]).copy()
+
+for c in required_cols:
     df[c] = df[c].astype(str).str.strip()
-df = df[(df["jp_word"] != "") & (df["reading"] != "") & (df["meaning"] != "")]
+
+# ✅ 빈 문자열 제거(보기 nan/공백 방지)
+df = df[(df["reading"] != "") & (df["meaning"] != "") & (df["level"] != "") & (df["pos"] != "")]
 
 pool = df[df["level"] == LEVEL].copy()
 pool_i = pool[pool["pos"] == "i_adj"].copy()
 
-if len(pool_i) < N:
-    st.error(f"い형용사 단어가 부족합니다: pool={len(pool_i)}")
+# ✅ 유형별 출제 풀
+pool_i_reading = pool_i[pool_i["jp_word"].str.strip() != ""].copy()  # 한자 있는 것만
+pool_i_meaning = pool_i.copy()  # 한자 없어도 포함
+
+if len(pool_i_meaning) < N:
+    st.error(f"뜻 퀴즈 단어가 부족합니다: pool={len(pool_i_meaning)}")
     st.stop()
+
+if len(pool_i_reading) < N:
+    st.warning(f"발음 퀴즈용(한자 표기 포함) 단어가 {len(pool_i_reading)}개뿐이라 10문항 출제가 어려울 수 있어요.")
 
 
 # ============================================================
 # ✅ 퀴즈 로직
 # ============================================================
+def _clean_candidates(series: pd.Series) -> list[str]:
+    return (
+        series.dropna()
+        .astype(str)
+        .map(lambda x: x.strip())
+        .loc[lambda s: (s != "") & (s.str.lower() != "nan")]
+        .drop_duplicates()
+        .tolist()
+    )
+
+
 def make_question(row: pd.Series, qtype: str, base_pool: pd.DataFrame) -> dict:
-    # 최종 방어(혹시라도 남은 결측)
-    if pd.isna(row.get("jp_word")) or pd.isna(row.get("reading")) or pd.isna(row.get("meaning")):
-        raise ValueError("NaN row detected in pool. Please clean CSV.")
+    jp_word = str(row.get("jp_word", "")).strip()
+    reading = str(row.get("reading", "")).strip()
+    meaning = str(row.get("meaning", "")).strip()
+
+    # ✅ 문제에 표시할 "표제" (한자 없으면 히라가나로 대체)
+    display_word = jp_word if jp_word != "" else reading
 
     if qtype == "reading":
-        prompt = f"{row['jp_word']}의 발음은?"
-        correct = row["reading"]
-        candidates = (
-            base_pool[base_pool["reading"] != correct]["reading"]
-            .dropna().drop_duplicates().tolist()
+        prompt = f"{display_word}의 발음은?"
+        correct = reading
+
+        candidates = _clean_candidates(
+            base_pool.loc[base_pool["reading"].astype(str).str.strip() != correct, "reading"]
         )
+
     else:
-        prompt = f"{row['jp_word']}의 뜻은?"
-        correct = row["meaning"]
-        candidates = (
-            base_pool[base_pool["meaning"] != correct]["meaning"]
-            .dropna().drop_duplicates().tolist()
+        prompt = f"{display_word}의 뜻은?"
+        correct = meaning
+
+        candidates = _clean_candidates(
+            base_pool.loc[base_pool["meaning"].astype(str).str.strip() != correct, "meaning"]
         )
 
     if len(candidates) < 3:
@@ -791,29 +809,60 @@ def make_question(row: pd.Series, qtype: str, base_pool: pd.DataFrame) -> dict:
         "prompt": prompt,
         "choices": choices,
         "correct_text": correct,
-        "jp_word": row["jp_word"],
-        "reading": row["reading"],
-        "meaning": row["meaning"],
-        "pos": row["pos"],
+        "jp_word": jp_word,          # 원본(비어있을 수 있음)
+        "display_word": display_word, # 화면표시용
+        "reading": reading,
+        "meaning": meaning,
+        "pos": str(row.get("pos", "")).strip(),
         "qtype": qtype,
+        # ✅ 재도전/추적용 키 (jp_word가 비면 reading을 키로 사용)
+        "key_word": jp_word if jp_word != "" else f"@{reading}",
     }
 
 
 def build_quiz(qtype: str) -> list:
-    sampled = pool_i.sample(n=N).reset_index(drop=True)
-    return [make_question(sampled.iloc[i], qtype, pool_i) for i in range(len(sampled))]
+    base_pool = pool_i_reading if qtype == "reading" else pool_i_meaning
+
+    if len(base_pool) < N:
+        st.error(f"{quiz_label_map[qtype]} 퀴즈 출제 풀이 부족합니다: {len(base_pool)}개")
+        st.stop()
+
+    sampled = base_pool.sample(n=N).reset_index(drop=True)
+    return [make_question(sampled.iloc[i], qtype, base_pool) for i in range(len(sampled))]
 
 
 def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
-    wrong_words = list({w["단어"] for w in wrong_list})
-    retry_df = pool_i[pool_i["jp_word"].isin(wrong_words)].copy()
+    # ✅ key_word 기준으로 재도전 구성 (jp_word 빈 단어도 안정적으로 재도전 가능)
+    keys = list({w.get("키", "") for w in wrong_list if w.get("키", "")})
+
+    base_pool = pool_i_reading if qtype == "reading" else pool_i_meaning
+
+    if not keys:
+        st.error("오답 키를 찾지 못했습니다.")
+        st.stop()
+
+    # jp_word 기반 키
+    jp_keys = [k for k in keys if not str(k).startswith("@")]
+    rd_keys = [str(k)[1:] for k in keys if str(k).startswith("@")]
+
+    retry_df = base_pool.copy()
+    cond = pd.Series([False] * len(retry_df), index=retry_df.index)
+
+    if jp_keys:
+        cond = cond | retry_df["jp_word"].astype(str).str.strip().isin(jp_keys)
+    if rd_keys:
+        cond = cond | retry_df["reading"].astype(str).str.strip().isin(rd_keys)
+
+    retry_df = retry_df[cond].copy()
 
     if len(retry_df) == 0:
-        st.error("오답 단어를 풀에서 찾지 못했습니다. (jp_word 매칭 확인 필요)")
+        st.error("오답 단어를 풀에서 찾지 못했습니다. (jp_word/reading 매칭 확인 필요)")
         st.stop()
 
     retry_df = retry_df.sample(frac=1).reset_index(drop=True)
-    return [make_question(retry_df.iloc[i], qtype, pool_i) for i in range(len(retry_df))]
+
+    # 오답 개수만큼만 재출제(최대 N으로 제한하고 싶으면 여기서 min 처리)
+    return [make_question(retry_df.iloc[i], qtype, base_pool) for i in range(len(retry_df))]
 
 
 # ============================================================
@@ -830,7 +879,6 @@ if "wrong_list" not in st.session_state:
 if "saved_this_attempt" not in st.session_state:
     st.session_state.saved_this_attempt = False
 
-# 누적(세션) 통계
 if "history" not in st.session_state:
     st.session_state.history = []
 if "wrong_counter" not in st.session_state:
@@ -944,10 +992,11 @@ if st.session_state.submitted:
                 "문제": q["prompt"],
                 "내 답": picked,
                 "정답": correct,
-                "단어": q["jp_word"],
+                "단어": q.get("display_word", q.get("jp_word", "")),
                 "읽기": q["reading"],
                 "뜻": q["meaning"],
                 "유형": st.session_state.quiz_type,
+                "키": q.get("key_word", ""),
             })
 
     st.session_state.wrong_list = wrong_list
@@ -1021,12 +1070,12 @@ if st.session_state.submitted:
     st.session_state.history.append({"type": st.session_state.quiz_type, "score": score, "total": quiz_len})
 
     for idx, q in enumerate(st.session_state.quiz):
-        word = q["jp_word"]
-        st.session_state.total_counter[word] = st.session_state.total_counter.get(word, 0) + 1
+        word_key = q.get("key_word", q.get("display_word", q.get("jp_word", "")))
+        st.session_state.total_counter[word_key] = st.session_state.total_counter.get(word_key, 0) + 1
         if st.session_state.answers[idx] != q["correct_text"]:
-            st.session_state.wrong_counter[word] = st.session_state.wrong_counter.get(word, 0) + 1
+            st.session_state.wrong_counter[word_key] = st.session_state.wrong_counter.get(word_key, 0) + 1
 
-    # ✅ 오답 있을 때만: 오답 노트 + 재도전 (상세 카드)
+    # ✅ 오답 있을 때만: 오답 노트 + 재도전
     if st.session_state.wrong_list:
         st.subheader("❌ 오답 노트")
 
@@ -1137,9 +1186,9 @@ if st.session_state.submitted:
     if st.session_state.wrong_counter:
         st.markdown("#### ❌ 자주 틀리는 단어 TOP 5")
         top5 = sorted(st.session_state.wrong_counter.items(), key=lambda x: x[1], reverse=True)[:5]
-        for rank, (w, cnt) in enumerate(top5, start=1):
-            total_seen = st.session_state.total_counter.get(w, 0)
-            st.write(f"{rank}. **{w}**  —  {cnt}회 오답 / {total_seen}회 출제")
+        for rank, (wkey, cnt) in enumerate(top5, start=1):
+            total_seen = st.session_state.total_counter.get(wkey, 0)
+            st.write(f"{rank}. **{wkey}**  —  {cnt}회 오답 / {total_seen}회 출제")
     else:
         st.info("아직 오답 누적 데이터가 없습니다.")
 
@@ -1149,5 +1198,4 @@ if st.session_state.submitted:
         st.session_state.total_counter = {}
         st.rerun()
 
-    # ✅ 제출 후 상담 배너
     render_naver_talk()
