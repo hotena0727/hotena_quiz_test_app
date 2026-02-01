@@ -776,6 +776,14 @@ df = df[
 
 pool = df[df["level"] == LEVEL].copy()
 pool_i = pool[pool["pos"] == "i_adj"].copy()
+# ✅ 발음(reading)용: 한자(jp_word) 있는 것만
+pool_i_reading = pool_i[
+    pool_i["jp_word"].notna() & (pool_i["jp_word"].astype(str).str.strip() != "")
+].copy()
+
+# ✅ 뜻(meaning)용: 한자 없어도 포함 (히라가나-only 포함)
+pool_i_meaning = pool_i.copy()
+
 
 if len(pool_i) < N:
     st.error(f"い형용사 단어가 부족합니다: pool={len(pool_i)}")
@@ -831,9 +839,9 @@ def make_question(row: pd.Series, qtype: str, base_pool_i: pd.DataFrame, distrac
 
 
 def build_quiz(qtype: str) -> list:
-    sampled = pool_i.sample(n=N).reset_index(drop=True)
+    base_pool = pool_i_reading if qtype == "reading" else pool_i_meaning
+    sampled = base_pool.sample(n=N).reset_index(drop=True)
     return [make_question(sampled.iloc[i], qtype, pool_i, pool) for i in range(len(sampled))]
-
 
 def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
     wrong_words = list({w["단어"] for w in wrong_list})
