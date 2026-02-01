@@ -785,23 +785,28 @@ if len(pool_i) < N:
 # ============================================================
 # ✅ 퀴즈 로직
 # ============================================================
-def make_question(row: pd.Series, qtype: str, base_pool: pd.DataFrame) -> dict:
-    # 최종 방어(혹시라도 남은 결측)
+def make_question(row: pd.Series, qtype: str, base_pool_i: pd.DataFrame, distractor_pool_level: pd.DataFrame) -> dict:
+    # 최종 방어
     if pd.isna(row.get("jp_word")) or pd.isna(row.get("reading")) or pd.isna(row.get("meaning")):
         raise ValueError("NaN row detected in pool. Please clean CSV.")
 
     if qtype == "reading":
         prompt = f"{row['jp_word']}의 발음은?"
         correct = row["reading"]
+
+        # ✅ 발음 오답은 i형용사 풀에서만 뽑아도 충분한 경우가 많음
         candidates = (
-            base_pool[base_pool["reading"] != correct]["reading"]
+            base_pool_i.loc[base_pool_i["reading"] != correct, "reading"]
             .dropna().drop_duplicates().tolist()
         )
+
     else:
         prompt = f"{row['jp_word']}의 뜻은?"
         correct = row["meaning"]
+
+        # ✅ 핵심: 뜻 오답 후보는 레벨 전체(pool)에서 뽑아서 3개 확보
         candidates = (
-            base_pool[base_pool["meaning"] != correct]["meaning"]
+            distractor_pool_level.loc[distractor_pool_level["meaning"] != correct, "meaning"]
             .dropna().drop_duplicates().tolist()
         )
 
@@ -827,7 +832,7 @@ def make_question(row: pd.Series, qtype: str, base_pool: pd.DataFrame) -> dict:
 
 def build_quiz(qtype: str) -> list:
     sampled = pool_i.sample(n=N).reset_index(drop=True)
-    return [make_question(sampled.iloc[i], qtype, pool_i) for i in range(len(sampled))]
+    return [make_question(sampled.iloc[i], qtype, pool_i, pool) for i in range(len(sampled))]
 
 
 def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
@@ -839,7 +844,7 @@ def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
         st.stop()
 
     retry_df = retry_df.sample(frac=1).reset_index(drop=True)
-    return [make_question(retry_df.iloc[i], qtype, pool_i) for i in range(len(retry_df))]
+    return [make_question(retry_df.iloc[i], qtype, pool_i, pool) for i in range(len(retry_df))]
 
 
 # ============================================================
