@@ -90,6 +90,7 @@ def clear_auth_everywhere():
         "history", "wrong_counter", "total_counter",
         "attendance_checked", "streak_count", "did_attend_today",
         "is_admin_cached",
+        "session_stats_applied_this_attempt",  # ✅ 추가
     ]:
         st.session_state.pop(k, None)
 
@@ -245,8 +246,6 @@ def fetch_is_admin_from_db(sb_authed, user_id):
 
 # ============================================================
 # ✅ FIX: 단어별 정오답 저장은 "RPC(record_word_result)"로만 처리
-# - SQL에서 만든 record_word_result(p_word_key,p_level,p_pos,p_quiz_type,p_is_correct) 사용
-# - events + user_word_stats 누적을 DB가 처리 (가장 안정적)
 # ============================================================
 def save_word_stats_via_rpc(sb_authed, quiz: list[dict], answers: list, quiz_type: str, level: str):
     for idx, q in enumerate(quiz):
@@ -269,7 +268,7 @@ def save_word_stats_via_rpc(sb_authed, quiz: list[dict], answers: list, quiz_typ
         ).execute()
 
 # ============================================================
-# ✅ Admin 설정 (secrets + DB 혼합)
+# ✅ Admin 설정 (DB ONLY)
 # ============================================================
 def get_admin_email_set() -> set[str]:
     raw = st.secrets.get("ADMIN_EMAILS", "")
@@ -278,8 +277,6 @@ def get_admin_email_set() -> set[str]:
 def is_admin() -> bool:
     """
     ✅ 관리자 판정: DB profiles.is_admin ONLY
-    - secrets(ADMIN_EMAILS) 사용 안 함
-    - 일반유저가 섞일 여지 0%
     """
     cached = st.session_state.get("is_admin_cached")
     if cached is not None:
@@ -333,7 +330,6 @@ def auth_box():
         email = st.text_input("이메일", key="login_email_input")
         pw = st.text_input("비밀번호", type="password", key="login_pw_input")
 
-        # ✅ 로그인 화면 힌트(버튼 막지 않고 안내만)
         st.caption("비밀번호는 **회원가입 때 8자리 이상**으로 설정했을 가능성이 큽니다.")
         if pw and len(pw) < 8:
             st.warning(f"입력하신 비밀번호가 {len(pw)}자리입니다. 회원가입 때 8자리 이상으로 설정하셨다면 더 길게 입력해 주세요.")
@@ -360,6 +356,7 @@ def auth_box():
                     st.warning("로그인은 되었지만 세션 토큰이 없습니다. 이메일 인증 상태를 확인해주세요.")
                     st.session_state.access_token = None
                     st.session_state.refresh_token = None
+
                 st.session_state.pop("is_admin_cached", None)
                 st.success("로그인 완료!")
                 st.rerun()
@@ -528,7 +525,6 @@ def render_naver_talk():
 # ============================================================
 refresh_session_from_cookie_if_needed(force=False)
 
-# user 키가 없을 때 대비
 if "user" not in st.session_state:
     st.session_state.user = None
 
@@ -540,10 +536,8 @@ user_email = getattr(user, "email", None) or st.session_state.get("login_email")
 
 sb_authed = get_authed_sb()
 if sb_authed is not None:
-    # 프로필 upsert
     ensure_profile(sb_authed, user)
 
-    # 출석 체크 (세션 1회)
     att = mark_attendance_once(sb_authed)
     if att:
         st.session_state["streak_count"] = int(att.get("streak_count", 0) or 0)
@@ -555,7 +549,6 @@ if sb_authed is not None:
 streak = st.session_state.get("streak_count")
 did_today = st.session_state.get("did_attend_today")
 
-# (A) 연속 출석 배지
 if streak is not None:
     if did_today:
         st.success(f"✅ 오늘 출석 완료!  (연속 {streak}일)")
@@ -567,7 +560,6 @@ if streak is not None:
     elif streak >= 7:
         st.info("🏅 7일 연속 달성! 흐름이 잡혔어요.")
 
-# (B) 오늘의 목표(루틴) - 간단 UI(세션 저장)
 if "today_goal" not in st.session_state:
     st.session_state.today_goal = "오늘은 10문항 1회 완주"
 if "today_goal_done" not in st.session_state:
@@ -838,11 +830,9 @@ READ_KW = dict(
 
 df = pd.read_csv(CSV_PATH, **READ_KW)
 
-# 탭 파일 대비(한 컬럼으로 뭉친 경우)
 if len(df.columns) == 1 and "\t" in df.columns[0]:
     df = pd.read_csv(CSV_PATH, sep="\t", **READ_KW)
 
-# BOM/공백 정리
 df.columns = df.columns.astype(str).str.replace("\ufeff", "", regex=False).str.strip()
 
 required_cols = ["jp_word", "reading", "meaning", "level", "pos"]
@@ -926,7 +916,6 @@ def build_quiz(qtype: str) -> list:
     return [make_question(sampled.iloc[i], qtype, pool_i, pool) for i in range(len(sampled))]
 
 def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
-    # ✅ jp_word가 없어서 reading으로 저장된 오답도 재매칭 가능하도록 개선
     wrong_words = list({w["단어"] for w in wrong_list})
     retry_df = pool_i[
         pool_i["jp_word"].isin(wrong_words) | pool_i["reading"].isin(wrong_words)
@@ -954,6 +943,10 @@ if "saved_this_attempt" not in st.session_state:
     st.session_state.saved_this_attempt = False
 if "stats_saved_this_attempt" not in st.session_state:
     st.session_state.stats_saved_this_attempt = False
+
+# ✅ (중요) 제출 후 누적 업데이트가 리런 때 중복되지 않도록 1회 플래그
+if "session_stats_applied_this_attempt" not in st.session_state:
+    st.session_state.session_stats_applied_this_attempt = False
 
 # 누적(세션) 통계
 if "history" not in st.session_state:
@@ -985,6 +978,7 @@ if selected != st.session_state.quiz_type:
     st.session_state.wrong_list = []
     st.session_state.saved_this_attempt = False
     st.session_state.stats_saved_this_attempt = False
+    st.session_state.session_stats_applied_this_attempt = False  # ✅ 추가
     st.session_state.quiz_version += 1
     st.rerun()
 
@@ -999,12 +993,14 @@ with col1:
         st.session_state.wrong_list = []
         st.session_state.saved_this_attempt = False
         st.session_state.stats_saved_this_attempt = False
+        st.session_state.session_stats_applied_this_attempt = False  # ✅ 추가
         st.session_state.quiz_version += 1
         st.rerun()
 
 with col2:
     if st.button("🧹 선택 초기화", use_container_width=True, key="btn_reset_choice"):
         st.session_state.submitted = False
+        st.session_state.session_stats_applied_this_attempt = False  # ✅ 추가
         st.session_state.quiz_version += 1
         st.rerun()
 
@@ -1043,6 +1039,8 @@ all_answered = all(a is not None for a in st.session_state.answers)
 
 if st.button("✅ 제출하고 채점하기", disabled=not all_answered, type="primary", use_container_width=True, key="btn_submit"):
     st.session_state.submitted = True
+    # ✅ 제출 순간에만 "이번 제출의 누적 업데이트 가능" 상태로 초기화
+    st.session_state.session_stats_applied_this_attempt = False
 
 if not all_answered:
     st.info("모든 문제에 답을 선택하면 제출 버튼이 활성화됩니다.")
@@ -1117,8 +1115,7 @@ if st.session_state.submitted:
                 st.write(str(e))
 
         # ============================================================
-        # ✅ FIX (2) 단어별 정오답 stats 저장(제출 1회)
-        # - direct insert가 아니라 RPC(record_word_result) 호출
+        # ✅ (2) 단어별 stats 저장(제출 1회 / RPC)
         # ============================================================
         if not st.session_state.stats_saved_this_attempt:
             def _save_stats():
@@ -1134,7 +1131,6 @@ if st.session_state.submitted:
                 run_db(_save_stats)
                 st.session_state.stats_saved_this_attempt = True
             except Exception:
-                # stats 저장 실패해도 앱은 정상 진행
                 st.caption("※ 단어 통계(stats) 저장이 실패했습니다. (RPC/권한/RLS 확인 필요)")
 
         st.subheader("📌 내 최근 기록")
@@ -1166,14 +1162,19 @@ if st.session_state.submitted:
             st.info("기록을 불러오지 못했습니다.")
             st.write(str(e))
 
-    # ✅ 세션 누적 통계
-    st.session_state.history.append({"type": st.session_state.quiz_type, "score": score, "total": quiz_len})
+    # ============================================================
+    # ✅ (중요) 세션 누적 통계는 제출 1회만 반영 (리런 중복 방지)
+    # ============================================================
+    if not st.session_state.session_stats_applied_this_attempt:
+        st.session_state.history.append({"type": st.session_state.quiz_type, "score": score, "total": quiz_len})
 
-    for idx, q in enumerate(st.session_state.quiz):
-        word_key = (str(q.get("jp_word", "")).strip() or str(q.get("reading", "")).strip())
-        st.session_state.total_counter[word_key] = st.session_state.total_counter.get(word_key, 0) + 1
-        if st.session_state.answers[idx] != q["correct_text"]:
-            st.session_state.wrong_counter[word_key] = st.session_state.wrong_counter.get(word_key, 0) + 1
+        for idx, q in enumerate(st.session_state.quiz):
+            word_key = (str(q.get("jp_word", "")).strip() or str(q.get("reading", "")).strip())
+            st.session_state.total_counter[word_key] = st.session_state.total_counter.get(word_key, 0) + 1
+            if st.session_state.answers[idx] != q["correct_text"]:
+                st.session_state.wrong_counter[word_key] = st.session_state.wrong_counter.get(word_key, 0) + 1
+
+        st.session_state.session_stats_applied_this_attempt = True
 
     # ✅ 오답 있을 때만: 오답 노트 + 재도전 (상세 카드)
     if st.session_state.wrong_list:
@@ -1261,6 +1262,7 @@ if st.session_state.submitted:
             st.session_state.wrong_list = []
             st.session_state.saved_this_attempt = False
             st.session_state.stats_saved_this_attempt = False
+            st.session_state.session_stats_applied_this_attempt = False  # ✅ 추가
             st.session_state.quiz_version += 1
             st.rerun()
 
@@ -1292,5 +1294,5 @@ if st.session_state.submitted:
         st.session_state.total_counter = {}
         st.rerun()
 
-    # ✅ 제출 후 상담 배너
+    # ✅ 제출 후 상담 배너 (제출 후에만)
     render_naver_talk()
