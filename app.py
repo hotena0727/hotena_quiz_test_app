@@ -541,7 +541,7 @@ def render_admin_dashboard():
 # ✅ 내 대시보드 (유저용)
 # ============================================================
 def render_my_dashboard():
-    st.subheader("📌 내 대시보드")
+    st.subheader("📌 나의 기록")
 
     if st.button("← 돌아가기", use_container_width=True, key="btn_my_back"):
         st.session_state.page = "quiz"
