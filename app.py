@@ -158,39 +158,44 @@ def auth_box():
         if pw and not pw_ok:
             st.warning(f"비밀번호가 너무 짧습니다. (현재 {pw_len}자) 8자리 이상으로 입력해 주세요.")
 
-        if st.button(
-            "회원가입",
-            use_container_width=True,
-            disabled=not (email_ok and pw_ok),
-        ):
-            try:
-                import time
-                last = st.session_state.get("last_signup_ts", 0.0)
-                now = time.time()
-                if now - last < 8:
-                    st.warning("요청이 너무 빠릅니다. 잠시 후 다시 시도해주세요.")
-                    st.stop()
-                st.session_state.last_signup_ts = now
+        import time
 
-                sb.auth.sign_up({"email": email, "password": pw})
+    if st.button(
+        "회원가입",
+        use_container_width=True,
+        disabled=not (email_ok and pw_ok),
+    ):
+        now = time.monotonic()
+        last = st.session_state.get("last_signup_ts_mono", 0.0)
 
-                st.session_state.signup_done = True
+        # (원인 확인용, 필요 없으면 지워도 됨)
+        # st.write("DEBUG mono now-last =", now - last)
+
+        if now - last < 8:
+            st.warning("요청이 너무 빠릅니다. 잠시 후 다시 시도해주세요.")
+            st.stop()
+
+        st.session_state["last_signup_ts_mono"] = now
+
+        try:
+            sb.auth.sign_up({"email": email, "password": pw})
+
+            st.session_state.signup_done = True
+            st.session_state.auth_mode = "login"
+            st.session_state["login_email"] = email
+            st.rerun()
+
+        except Exception as e:
+            msg = str(e).lower()
+            if "rate limit" in msg and "email" in msg:
                 st.session_state.auth_mode = "login"
                 st.session_state["login_email"] = email
+                st.warning("이메일 발송 제한에 걸렸습니다. 잠시 후 다시 시도해주세요.")
                 st.rerun()
 
-            except Exception as e:
-                msg = str(e).lower()
-                if "rate limit" in msg and "email" in msg:
-                    st.session_state.auth_mode = "login"
-                    st.session_state["login_email"] = email
-                    st.session_state.signup_done = False
-                    st.warning("이메일 발송 제한에 걸렸습니다. 잠시 후 다시 시도해주세요.")
-                    st.rerun()
-
-                st.error("회원가입 실패(에러 확인):")
-                st.exception(e)
-                st.stop()
+            st.error("회원가입 실패(에러 확인):")
+            st.exception(e)
+            st.stop()
 
 
 
