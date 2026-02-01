@@ -16,6 +16,11 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=Kosugi+Maru&display=swap');
 :root{ --jp-rounded: "Kosugi Maru","Hiragino Sans","Yu Gothic","Meiryo",sans-serif; }
 .jp, .jp *{ font-family: var(--jp-rounded) !important; line-height:1.7; letter-spacing:.2px; }
+
+/* 버튼 줄바꿈 완화(전체 버튼에 적용) */
+div.stButton>button {
+  white-space: nowrap !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -333,7 +338,6 @@ user_email = getattr(user, "email", None) or st.session_state.get("login_email")
 
 sb_authed = get_authed_sb()
 if sb_authed is not None:
-    # DB가 막혀도 앱은 계속 돌아가게 run_db로 감싸지 않음(실패해도 무시)
     try:
         ensure_profile(sb_authed, user)
     except Exception:
@@ -584,7 +588,6 @@ def render_my_dashboard():
     st.divider()
     st.markdown("### 최근 기록")
 
-    # 카드형
     st.markdown("""
 <style>
 .record-card{
@@ -619,6 +622,7 @@ def render_my_dashboard():
   font-weight: 700;
   border: 1px solid rgba(120,120,120,0.25);
   background: rgba(255,255,255,0.03);
+  white-space: nowrap;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -656,7 +660,7 @@ def render_my_dashboard():
         st.caption(f"정답률 {pct:.0f}%")
         st.write("")
 
-    # ✅ 학생 화면에서는 expander(표로 보기) 숨김
+    # ✅ 관리자만 '표로 보기' 노출
     if is_admin():
         with st.expander("표로 보기"):
             show = hist.rename(columns={
@@ -675,14 +679,14 @@ def render_my_dashboard():
             )
 
 
-
 # ============================================================
 # ✅ 상단 헤더 (페이지/버튼)
 # ============================================================
 if "page" not in st.session_state:
     st.session_state.page = "quiz"  # quiz | my | admin
 
-colA, colB, colC, colD = st.columns([6, 3, 2, 3])
+# ✅ 버튼 줄바꿈 완화: 기록 버튼 칼럼을 넉넉하게
+colA, colB, colC, colD = st.columns([7, 3, 2, 3])
 
 with colA:
     st.caption("환영합니다 🙂")
@@ -732,6 +736,18 @@ if len(df.columns) == 1 and "\t" in df.columns[0]:
 
 df.columns = df.columns.astype(str).str.replace("\ufeff", "", regex=False).str.strip()
 
+# ✅ nan 방지: 필수 값이 비어있는 행 제거 + 빈문자열도 제거
+required_cols = ["jp_word", "reading", "meaning", "level", "pos"]
+missing = [c for c in required_cols if c not in df.columns]
+if missing:
+    st.error(f"CSV 컬럼이 부족합니다: {missing}")
+    st.stop()
+
+df = df.dropna(subset=["jp_word", "reading", "meaning", "level", "pos"]).copy()
+for c in ["jp_word", "reading", "meaning", "level", "pos"]:
+    df[c] = df[c].astype(str).str.strip()
+df = df[(df["jp_word"] != "") & (df["reading"] != "") & (df["meaning"] != "")]
+
 pool = df[df["level"] == LEVEL].copy()
 pool_i = pool[pool["pos"] == "i_adj"].copy()
 
@@ -744,6 +760,10 @@ if len(pool_i) < N:
 # ✅ 퀴즈 로직
 # ============================================================
 def make_question(row: pd.Series, qtype: str, base_pool: pd.DataFrame) -> dict:
+    # 최종 방어(혹시라도 남은 결측)
+    if pd.isna(row.get("jp_word")) or pd.isna(row.get("reading")) or pd.isna(row.get("meaning")):
+        raise ValueError("NaN row detected in pool. Please clean CSV.")
+
     if qtype == "reading":
         prompt = f"{row['jp_word']}의 발음은?"
         correct = row["reading"]
@@ -904,6 +924,10 @@ if st.button("✅ 제출하고 채점하기", disabled=not all_answered, type="p
 if not all_answered:
     st.info("모든 문제에 답을 선택하면 제출 버튼이 활성화됩니다.")
 
+
+# ============================================================
+# ✅ 제출 후 화면 (점수/오답노트/누적/배너)
+# ============================================================
 if st.session_state.submitted:
     score = 0
     wrong_list = []
@@ -944,7 +968,6 @@ if st.session_state.submitted:
     if sb_authed_local is None:
         st.warning("DB 저장/조회용 토큰이 없습니다. 다시 로그인해 주세요.")
     else:
-        # ✅ DB 저장(한 번만) - JWT expired면 자동 refresh+rerrun
         if not st.session_state.saved_this_attempt:
             def _save():
                 return save_attempt_to_db(
@@ -965,7 +988,6 @@ if st.session_state.submitted:
                 st.warning("DB 저장에 실패했습니다. (테이블/컬럼/권한/RLS 정책 확인 필요)")
                 st.write(str(e))
 
-        # ✅ 최근 기록
         st.subheader("📌 내 최근 기록")
 
         def _fetch_hist():
@@ -995,7 +1017,7 @@ if st.session_state.submitted:
             st.info("기록을 불러오지 못했습니다.")
             st.write(str(e))
 
-    # ✅ 세션 누적 통계(원래 기능 유지)
+    # ✅ 세션 누적 통계
     st.session_state.history.append({"type": st.session_state.quiz_type, "score": score, "total": quiz_len})
 
     for idx, q in enumerate(st.session_state.quiz):
@@ -1004,75 +1026,73 @@ if st.session_state.submitted:
         if st.session_state.answers[idx] != q["correct_text"]:
             st.session_state.wrong_counter[word] = st.session_state.wrong_counter.get(word, 0) + 1
 
-    # ✅ 오답 있을 때만: 오답 노트 + 재도전
-if st.session_state.wrong_list:
-    st.subheader("❌ 오답 노트")
+    # ✅ 오답 있을 때만: 오답 노트 + 재도전 (상세 카드)
+    if st.session_state.wrong_list:
+        st.subheader("❌ 오답 노트")
 
-    # 보기 좋게 표기용 스타일(선택)
-    st.markdown("""
-    <style>
-    .wrong-card{
-      border: 1px solid rgba(120,120,120,0.25);
-      border-radius: 16px;
-      padding: 14px 14px;
-      margin-bottom: 10px;
-      background: rgba(255,255,255,0.02);
-    }
-    .wrong-top{
-      display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
-      gap:12px;
-      margin-bottom: 8px;
-    }
-    .wrong-title{
-      font-weight: 900;
-      font-size: 15px;
-      margin-bottom: 4px;
-    }
-    .wrong-sub{
-      opacity: 0.8;
-      font-size: 12px;
-    }
-    .tag{
-      display:inline-flex;
-      align-items:center;
-      gap:6px;
-      padding: 5px 9px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 700;
-      border: 1px solid rgba(120,120,120,0.25);
-      background: rgba(255,255,255,0.03);
-      white-space: nowrap;
-    }
-    .ans-row{
-      display:grid;
-      grid-template-columns: 72px 1fr;
-      gap:10px;
-      margin-top:6px;
-      font-size: 13px;
-    }
-    .ans-k{
-      opacity: 0.7;
-      font-weight: 700;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+        st.markdown("""
+<style>
+.wrong-card{
+  border: 1px solid rgba(120,120,120,0.25);
+  border-radius: 16px;
+  padding: 14px 14px;
+  margin-bottom: 10px;
+  background: rgba(255,255,255,0.02);
+}
+.wrong-top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom: 8px;
+}
+.wrong-title{
+  font-weight: 900;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+.wrong-sub{
+  opacity: 0.8;
+  font-size: 12px;
+}
+.tag{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid rgba(120,120,120,0.25);
+  background: rgba(255,255,255,0.03);
+  white-space: nowrap;
+}
+.ans-row{
+  display:grid;
+  grid-template-columns: 72px 1fr;
+  gap:10px;
+  margin-top:6px;
+  font-size: 13px;
+}
+.ans-k{
+  opacity: 0.7;
+  font-weight: 700;
+}
+</style>
+""", unsafe_allow_html=True)
 
-    # ✅ 상세 안내(최근 오답부터 보기)
-    for w in st.session_state.wrong_list:
-        no = w.get("No", "")
-        qtext = w.get("문제", "")
-        picked = w.get("내 답", "")
-        correct = w.get("정답", "")
-        word = w.get("단어", "")
-        reading = w.get("읽기", "")
-        meaning = w.get("뜻", "")
-        mode = quiz_label_map.get(w.get("유형", ""), w.get("유형", ""))
+        for w in st.session_state.wrong_list:
+            no = w.get("No", "")
+            qtext = w.get("문제", "")
+            picked = w.get("내 답", "")
+            correct = w.get("정답", "")
+            word = w.get("단어", "")
+            reading = w.get("읽기", "")
+            meaning = w.get("뜻", "")
+            mode = quiz_label_map.get(w.get("유형", ""), w.get("유형", ""))
 
-        st.markdown(
-            f"""
+            st.markdown(
+                f"""
 <div class="wrong-card">
   <div class="wrong-top">
     <div>
@@ -1088,18 +1108,18 @@ if st.session_state.wrong_list:
   <div class="ans-row"><div class="ans-k">뜻</div><div>{meaning}</div></div>
 </div>
 """,
-            unsafe_allow_html=True,
-        )
+                unsafe_allow_html=True,
+            )
 
-    st.divider()
+        st.divider()
 
-    if st.button("❌ 틀린 문제만 다시 풀기", type="primary", use_container_width=True, key="btn_retry_wrong"):
-        st.session_state.quiz = build_quiz_from_wrongs(st.session_state.wrong_list, st.session_state.quiz_type)
-        st.session_state.submitted = False
-        st.session_state.wrong_list = []
-        st.session_state.saved_this_attempt = False
-        st.session_state.quiz_version += 1
-        st.rerun()
+        if st.button("❌ 틀린 문제만 다시 풀기", type="primary", use_container_width=True, key="btn_retry_wrong"):
+            st.session_state.quiz = build_quiz_from_wrongs(st.session_state.wrong_list, st.session_state.quiz_type)
+            st.session_state.submitted = False
+            st.session_state.wrong_list = []
+            st.session_state.saved_this_attempt = False
+            st.session_state.quiz_version += 1
+            st.rerun()
 
     # ✅ 누적 현황(이번 세션)
     st.divider()
