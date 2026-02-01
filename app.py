@@ -63,6 +63,7 @@ def get_authed_sb():
 # ✅ 상수/설정
 # ============================================================
 NAVER_TALK_URL = "https://talk.naver.com/W45141"
+APP_URL = "https://hotenaquiztestapp-5wiha4zfuvtnq4qgxdhq72.streamlit.app/"  # 예: https://hotena-quiz-test-app.streamlit.app
 LEVEL = "N4"
 N = 10
 
@@ -188,7 +189,15 @@ def auth_box():
                     st.stop()
                 st.session_state.last_signup_ts = now
 
-                sb.auth.sign_up({"email": email.strip(), "password": pw})
+                sb.auth.sign_up(
+                    {
+                        "email": email,
+                        "password": pw,
+                        "options": {
+                            "email_redirect_to": APP_URL
+                        },
+                    }
+                )
 
                 st.session_state.signup_done = True
                 st.session_state.auth_mode = "login"
