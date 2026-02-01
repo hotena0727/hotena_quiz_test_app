@@ -117,37 +117,37 @@ def auth_box():
                 st.stop()
 
     with tab2:
-    email = st.text_input("이메일", key="signup_email")
-    pw = st.text_input("비밀번호", type="password", key="signup_pw")
+        email = st.text_input("이메일", key="signup_email")
+        pw = st.text_input("비밀번호", type="password", key="signup_pw")
+    
+        # ✅ 실시간 안내/검증
+        pw_len = len(pw) if pw else 0
 
-    # ✅ 실시간 안내/검증
-    pw_len = len(pw) if pw else 0
+        # 안내 문구(항상 노출)
+        st.caption("비밀번호는 **8자리 이상**으로 설정해 주세요.")
 
-    # 안내 문구(항상 노출)
-    st.caption("비밀번호는 **8자리 이상**으로 설정해 주세요.")
+        # 조건 체크(최소: 8자)
+        pw_ok = pw_len >= 8
+        email_ok = bool(email)
 
-    # 조건 체크(최소: 8자)
-    pw_ok = pw_len >= 8
-    email_ok = bool(email)
+        # 비밀번호가 입력되었는데 8자 미만이면 경고
+        if pw and not pw_ok:
+            st.warning(f"비밀번호가 너무 짧습니다. (현재 {pw_len}자) 8자리 이상으로 입력해 주세요.")
 
-    # 비밀번호가 입력되었는데 8자 미만이면 경고
-    if pw and not pw_ok:
-        st.warning(f"비밀번호가 너무 짧습니다. (현재 {pw_len}자) 8자리 이상으로 입력해 주세요.")
-
-    # ✅ 버튼 자체를 조건 충족 시에만 활성화
-    if st.button(
-        "회원가입",
-        use_container_width=True,
-        disabled=not (email_ok and pw_ok),
-        help="이메일을 입력하고, 비밀번호를 8자리 이상으로 설정하면 활성화됩니다."
-    ):
-        try:
-            sb.auth.sign_up({"email": email, "password": pw})
-            st.success("회원가입 요청 완료! 이메일 인증이 필요할 수 있어요.")
-        except Exception as e:
-            st.error("회원가입 실패(에러 확인):")
-            st.exception(e)
-            st.stop()
+        # ✅ 버튼 자체를 조건 충족 시에만 활성화
+        if st.button(
+            "회원가입",
+            use_container_width=True,
+            disabled=not (email_ok and pw_ok),
+            help="이메일을 입력하고, 비밀번호를 8자리 이상으로 설정하면 활성화됩니다."
+        ):
+            try:
+                sb.auth.sign_up({"email": email, "password": pw})
+                st.success("회원가입 요청 완료! 이메일 인증이 필요할 수 있어요.")
+            except Exception as e:
+                st.error("회원가입 실패(에러 확인):")
+                st.exception(e)
+                st.stop()
 
 
 
