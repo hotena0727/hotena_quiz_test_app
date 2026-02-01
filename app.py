@@ -541,7 +541,7 @@ with colC:
 # ============================================================
 # ✅ 페이지 라우팅
 # ============================================================
-if st.session_state.get("") == "admin":
+if st.session_state.get("page") == "admin":
     render_admin_dashboard()
     st.stop()
 
