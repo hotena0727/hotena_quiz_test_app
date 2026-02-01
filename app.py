@@ -92,9 +92,28 @@ quiz_label_for_table = {"reading": "발음", "meaning": "뜻"}
 # ============================================================
 def auth_box():
     st.subheader("로그인")
-    tab1, tab2 = st.tabs(["로그인", "회원가입"])
 
-    with tab1:
+    # ✅ 화면 모드 (로그인/회원가입) — 탭 대신 라디오
+    if "auth_mode" not in st.session_state:
+        st.session_state.auth_mode = "login"  # 기본은 로그인
+
+    mode = st.radio(
+        label="",
+        options=["login", "signup"],
+        format_func=lambda x: "로그인" if x == "login" else "회원가입",
+        horizontal=True,
+        key="auth_mode_radio",
+        index=0 if st.session_state.auth_mode == "login" else 1,
+    )
+
+    st.session_state.auth_mode = mode
+
+    # ✅ 회원가입 성공 후 메시지 (로그인 화면 위에 노출)
+    if st.session_state.get("signup_done"):
+        st.success("회원가입 요청 완료! 이메일 인증이 필요할 수 있어요. 메일함을 확인한 뒤 로그인해 주세요.")
+        st.session_state.signup_done = False
+
+    if mode == "login":
         email = st.text_input("이메일", key="login_email")
         pw = st.text_input("비밀번호", type="password", key="login_pw")
 
@@ -106,15 +125,12 @@ def auth_box():
             try:
                 res = sb.auth.sign_in_with_password({"email": email, "password": pw})
 
-                # ✅ user
                 st.session_state.user = res.user
 
-                # ✅ session token (RLS용)
                 if res.session and res.session.access_token:
                     st.session_state.access_token = res.session.access_token
                     st.session_state.refresh_token = res.session.refresh_token
 
-                    # ✅✅✅ 쿠키 저장(새로고침 대비)
                     cookies["access_token"] = res.session.access_token
                     cookies["refresh_token"] = res.session.refresh_token
                     cookies.save()
@@ -130,34 +146,36 @@ def auth_box():
                 st.error("로그인 실패: 이메일/비밀번호 또는 이메일 인증 상태를 확인해주세요.")
                 st.stop()
 
-    with tab2:
+    else:
         email = st.text_input("이메일", key="signup_email")
         pw = st.text_input("비밀번호", type="password", key="signup_pw")
-    
-        # ✅ 실시간 안내/검증
-        pw_len = len(pw) if pw else 0
 
-        # 안내 문구(항상 노출)
         st.caption("비밀번호는 **8자리 이상**으로 설정해 주세요.")
-
-        # 조건 체크(최소: 8자)
+        pw_len = len(pw) if pw else 0
         pw_ok = pw_len >= 8
         email_ok = bool(email)
 
-        # 비밀번호가 입력되었는데 8자 미만이면 경고
         if pw and not pw_ok:
             st.warning(f"비밀번호가 너무 짧습니다. (현재 {pw_len}자) 8자리 이상으로 입력해 주세요.")
 
-        # ✅ 버튼 자체를 조건 충족 시에만 활성화
         if st.button(
             "회원가입",
             use_container_width=True,
             disabled=not (email_ok and pw_ok),
-            help="이메일을 입력하고, 비밀번호를 8자리 이상으로 설정하면 활성화됩니다."
         ):
             try:
+                # ✅ Supabase rate limit(1초) 대비
+                import time
+                time.sleep(1.05)
+
                 sb.auth.sign_up({"email": email, "password": pw})
-                st.success("회원가입 요청 완료! 이메일 인증이 필요할 수 있어요.")
+
+                # ✅ 가입 성공: 로그인 화면으로 전환 + 성공 메시지 + 로그인 이메일 자동 채움
+                st.session_state.signup_done = True
+                st.session_state.auth_mode = "login"
+                st.session_state["login_email"] = email
+                st.rerun()
+
             except Exception as e:
                 st.error("회원가입 실패(에러 확인):")
                 st.exception(e)
