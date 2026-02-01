@@ -434,7 +434,8 @@ def render_admin_dashboard():
         return
 
     df_admin = pd.DataFrame(res.data).copy()
-    df_admin["created_at"] = pd.to_datetime(df_admin["created_at"]).dt.tz_localize(None)
+    ts = pd.to_datetime(df_admin["created_at"], utc=True)
+    df_admin["created_at"] = ts.dt.tz_convert("Asia/Seoul").dt.tz_localize(None)
 
     c1, c2, c3 = st.columns(3)
     c1.metric("최근 500건", rows)
@@ -744,7 +745,8 @@ if st.session_state.submitted:
                 st.info("아직 저장된 기록이 없습니다. 문제를 풀고 제출하면 기록이 쌓여요.")
             else:
                 hist = pd.DataFrame(res.data).copy()
-                hist["created_at"] = pd.to_datetime(hist["created_at"]).dt.tz_localize(None)
+                ts = pd.to_datetime(hist["created_at"], utc=True)
+                hist["created_at"] = ts.dt.tz_convert("Asia/Seoul").dt.tz_localize(None)
 
                 hist["유형"] = hist["pos_mode"].map(lambda x: quiz_label_for_table.get(x, x))
                 hist["정답률"] = (hist["score"] / hist["quiz_len"]).fillna(0)
