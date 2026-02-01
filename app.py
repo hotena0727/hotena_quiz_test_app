@@ -201,6 +201,19 @@ def require_login():
         auth_box()
         st.stop()
 
+def ensure_profile(sb_authed, user):
+    try:
+        sb_authed.table("profiles").upsert({
+            "id": user.id,
+            "email": getattr(user, "email", None),
+        }).execute()
+    except Exception:
+        pass  # 실패해도 퀴즈는 진행
+
+sb_authed = get_authed_sb()
+if sb_authed:
+    ensure_profile(sb_authed, user)
+
 
 # ============================================================
 # ✅ DB 저장/조회 함수 (반드시 sb_authed로 호출)
