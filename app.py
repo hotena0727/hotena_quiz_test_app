@@ -201,31 +201,29 @@ def require_login():
         auth_box()
         st.stop()
 
-# ✅ 로그인 강제
-require_login()
-
-# ✅ 이제부터 user 변수가 존재
-user = st.session_state.user
-user_id = user.id
-
-# ✅ RLS용 클라이언트
-sb_authed = get_authed_sb()
-
-# ✅ profiles upsert (여기서!)
-if sb_authed is not None:
-    ensure_profile(sb_authed, user)
 
 def ensure_profile(sb_authed, user):
+    """profiles에 (id, email) upsert. 관리자 판별(is_admin) 기반 데이터 준비."""
     try:
         sb_authed.table("profiles").upsert({
             "id": user.id,
             "email": getattr(user, "email", None),
         }).execute()
     except Exception:
-        pass  # 실패해도 퀴즈는 진행
+        # 실패해도 퀴즈 진행은 가능하게(조용히 무시)
+        pass
 
+
+# ✅ 로그인 강제 (여기서부터 아래는 로그인 완료 상태)
+require_login()
+
+# ✅ 로그인 완료 후 user 확보
+user = st.session_state.user
+user_id = user.id
+
+# ✅ RLS용 클라이언트 + profiles upsert (딱 1번만)
 sb_authed = get_authed_sb()
-if sb_authed:
+if sb_authed is not None:
     ensure_profile(sb_authed, user)
 
 
