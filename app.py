@@ -1004,17 +1004,102 @@ if st.session_state.submitted:
         if st.session_state.answers[idx] != q["correct_text"]:
             st.session_state.wrong_counter[word] = st.session_state.wrong_counter.get(word, 0) + 1
 
-    # ✅ 오답 있을 때만: 오답 재도전
-    if st.session_state.wrong_list:
-        st.subheader("❌ 오답 노트")
+    # ✅ 오답 있을 때만: 오답 노트 + 재도전
+if st.session_state.wrong_list:
+    st.subheader("❌ 오답 노트")
 
-        if st.button("❌ 틀린 문제만 다시 풀기", type="primary", use_container_width=True, key="btn_retry_wrong"):
-            st.session_state.quiz = build_quiz_from_wrongs(st.session_state.wrong_list, st.session_state.quiz_type)
-            st.session_state.submitted = False
-            st.session_state.wrong_list = []
-            st.session_state.saved_this_attempt = False
-            st.session_state.quiz_version += 1
-            st.rerun()
+    # 보기 좋게 표기용 스타일(선택)
+    st.markdown("""
+    <style>
+    .wrong-card{
+      border: 1px solid rgba(120,120,120,0.25);
+      border-radius: 16px;
+      padding: 14px 14px;
+      margin-bottom: 10px;
+      background: rgba(255,255,255,0.02);
+    }
+    .wrong-top{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom: 8px;
+    }
+    .wrong-title{
+      font-weight: 900;
+      font-size: 15px;
+      margin-bottom: 4px;
+    }
+    .wrong-sub{
+      opacity: 0.8;
+      font-size: 12px;
+    }
+    .tag{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid rgba(120,120,120,0.25);
+      background: rgba(255,255,255,0.03);
+      white-space: nowrap;
+    }
+    .ans-row{
+      display:grid;
+      grid-template-columns: 72px 1fr;
+      gap:10px;
+      margin-top:6px;
+      font-size: 13px;
+    }
+    .ans-k{
+      opacity: 0.7;
+      font-weight: 700;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # ✅ 상세 안내(최근 오답부터 보기)
+    for w in st.session_state.wrong_list:
+        no = w.get("No", "")
+        qtext = w.get("문제", "")
+        picked = w.get("내 답", "")
+        correct = w.get("정답", "")
+        word = w.get("단어", "")
+        reading = w.get("읽기", "")
+        meaning = w.get("뜻", "")
+        mode = quiz_label_map.get(w.get("유형", ""), w.get("유형", ""))
+
+        st.markdown(
+            f"""
+<div class="wrong-card">
+  <div class="wrong-top">
+    <div>
+      <div class="wrong-title">Q{no}. {word}</div>
+      <div class="wrong-sub">{qtext} · 유형: {mode}</div>
+    </div>
+    <div class="tag">오답</div>
+  </div>
+
+  <div class="ans-row"><div class="ans-k">내 답</div><div>{picked}</div></div>
+  <div class="ans-row"><div class="ans-k">정답</div><div><b>{correct}</b></div></div>
+  <div class="ans-row"><div class="ans-k">읽기</div><div>{reading}</div></div>
+  <div class="ans-row"><div class="ans-k">뜻</div><div>{meaning}</div></div>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+
+    st.divider()
+
+    if st.button("❌ 틀린 문제만 다시 풀기", type="primary", use_container_width=True, key="btn_retry_wrong"):
+        st.session_state.quiz = build_quiz_from_wrongs(st.session_state.wrong_list, st.session_state.quiz_type)
+        st.session_state.submitted = False
+        st.session_state.wrong_list = []
+        st.session_state.saved_this_attempt = False
+        st.session_state.quiz_version += 1
+        st.rerun()
 
     # ✅ 누적 현황(이번 세션)
     st.divider()
