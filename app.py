@@ -392,7 +392,7 @@ def render_admin_dashboard():
     try:
         res = (
             sb_authed.table("quiz_attempts")
-            .select("created_at, user_id, level, pos_mode, quiz_len, score, wrong_count")
+            .select("created_at, user_id, user_email, level, pos_mode, quiz_len, score, wrong_count")
             .order("created_at", desc=True)
             .limit(200)
             .execute()
