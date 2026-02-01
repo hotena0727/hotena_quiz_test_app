@@ -251,32 +251,27 @@ def get_admin_email_set() -> set[str]:
 
 def is_admin() -> bool:
     """
-    우선순위:
-    1) session cache
-    2) secrets ADMIN_EMAILS에 있으면 True
-    3) DB profiles.is_admin 확인
+    ✅ 관리자 판정: DB profiles.is_admin ONLY
+    - secrets(ADMIN_EMAILS) 사용 안 함
+    - 일반유저가 섞일 여지 0%
     """
     cached = st.session_state.get("is_admin_cached")
     if cached is not None:
         return bool(cached)
 
     u = st.session_state.get("user")
-    email = getattr(u, "email", None) if u else None
-    if not email:
-        email = st.session_state.get("login_email")
-
-    if email and email.strip().lower() in get_admin_email_set():
-        st.session_state["is_admin_cached"] = True
-        return True
+    if u is None:
+        st.session_state["is_admin_cached"] = False
+        return False
 
     sb_authed_local = get_authed_sb()
-    if sb_authed_local is not None and u is not None:
-        val = fetch_is_admin_from_db(sb_authed_local, u.id)
-        st.session_state["is_admin_cached"] = val
-        return bool(val)
+    if sb_authed_local is None:
+        st.session_state["is_admin_cached"] = False
+        return False
 
-    st.session_state["is_admin_cached"] = False
-    return False
+    val = fetch_is_admin_from_db(sb_authed_local, u.id)
+    st.session_state["is_admin_cached"] = val
+    return bool(val)
 
 # ============================================================
 # ✅ 로그인 UI
