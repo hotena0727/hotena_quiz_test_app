@@ -407,7 +407,8 @@ colA, colB, colC = st.columns([5, 2, 3])
 
 with colA:
     st.caption("환영합니다 🙂")
-
+    st.caption(f"DEBUG page={st.session_state.get('page')} | admin={is_admin()} | me={getattr(st.session_state.user,'email',None)}")
+ 
 with colB:
     if is_admin():
         if st.button("📊 관리자 대시보드", use_container_width=True):
