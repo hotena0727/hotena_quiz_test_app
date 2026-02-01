@@ -782,6 +782,7 @@ pool_i_reading = pool_i[
 
 # ✅ 뜻(meaning)용: 한자 없어도 포함 (히라가나-only 포함)
 pool_i_meaning = pool_i.copy()
+st.write("jp_word 빈 i_adj 개수:", (pool_i_meaning["jp_word"].astype(str).str.strip() == "").sum())
 
 
 if len(pool_i) < N:
@@ -982,7 +983,7 @@ if st.session_state.submitted:
                 "문제": q["prompt"],
                 "내 답": picked,
                 "정답": correct,
-                "단어": q["jp_word"],
+                "단어": q.get("jp_word") if str(q.get("jp_word","")).strip() != "" else q.get("reading",""),
                 "읽기": q["reading"],
                 "뜻": q["meaning"],
                 "유형": st.session_state.quiz_type,
