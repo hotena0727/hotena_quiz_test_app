@@ -201,6 +201,20 @@ def require_login():
         auth_box()
         st.stop()
 
+# ✅ 로그인 강제
+require_login()
+
+# ✅ 이제부터 user 변수가 존재
+user = st.session_state.user
+user_id = user.id
+
+# ✅ RLS용 클라이언트
+sb_authed = get_authed_sb()
+
+# ✅ profiles upsert (여기서!)
+if sb_authed is not None:
+    ensure_profile(sb_authed, user)
+
 def ensure_profile(sb_authed, user):
     try:
         sb_authed.table("profiles").upsert({
