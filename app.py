@@ -334,7 +334,7 @@ def auth_box():
                     st.warning("로그인은 되었지만 세션 토큰이 없습니다. 이메일 인증 상태를 확인해주세요.")
                     st.session_state.access_token = None
                     st.session_state.refresh_token = None
-
+                st.session_state.pop("is_admin_cached", None)
                 st.success("로그인 완료!")
                 st.rerun()
 
