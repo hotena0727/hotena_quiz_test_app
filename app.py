@@ -786,6 +786,7 @@ if st.session_state.submitted:
                 save_attempt_to_db(
                     sb_authed=sb_authed,
                     user_id=user_id,
+                    user_email=user_email,  # ✅ 추가!!
                     level=LEVEL,
                     quiz_type=st.session_state.quiz_type,
                     quiz_len=quiz_len,
