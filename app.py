@@ -66,6 +66,20 @@ NAVER_TALK_URL = "https://talk.naver.com/W45141"
 LEVEL = "N4"
 N = 10
 
+# ============================================================
+# ✅ Admin 설정  ← 여기!
+# ============================================================
+def get_admin_email_set() -> set[str]:
+    raw = st.secrets.get("ADMIN_EMAILS", "")
+    return {e.strip().lower() for e in raw.split(",") if e.strip()}
+
+def is_admin() -> bool:
+    u = st.session_state.get("user")
+    email = getattr(u, "email", None)
+    if not email:
+        return False
+    return email.strip().lower() in get_admin_email_set()
+
 # ✅ 2) 출제유형 2개(발음/뜻)
 QUIZ_TYPES = ["reading", "meaning"]
 quiz_label_map = {"reading": "발음", "meaning": "뜻"}
@@ -326,6 +340,57 @@ def render_naver_talk():
         unsafe_allow_html=True,
     )
 
+def render_admin_dashboard():
+    # ✅ 안전장치: 학생이 URL/세션 꼼수로 접근해도 여기서 차단
+    if not is_admin():
+        st.error("접근 권한이 없습니다.")
+        st.session_state.page = "quiz"
+        st.stop()
+
+    st.subheader("📊 관리자 대시보드")
+
+    # 돌아가기 버튼
+    if st.button("← 퀴즈로 돌아가기"):
+        st.session_state.page = "quiz"
+        st.rerun()
+
+    sb_authed = get_authed_sb()
+    if sb_authed is None:
+        st.warning("토큰이 없어 조회할 수 없습니다.")
+        st.stop()
+
+    # ✅ (중요) 이 조회가 되려면 RLS에서 '관리자 전체 조회'가 허용되어야 합니다.
+    # 아직 RLS가 '본인 것만'이면 여기서 데이터가 비거나 에러가 납니다.
+    res = (
+        sb_authed.table("quiz_attempts")
+        .select("created_at, user_id, level, pos_mode, quiz_len, score, wrong_count")
+        .order("created_at", desc=True)
+        .limit(500)
+        .execute()
+    )
+
+    if not res.data:
+        st.info("데이터가 없거나(또는) RLS 정책 때문에 전체 조회가 막혀 있습니다.")
+        st.caption("관리자 전체 조회를 허용하는 RLS 정책을 추가해야 합니다.")
+        return
+
+    df_admin = pd.DataFrame(res.data).copy()
+    df_admin["created_at"] = pd.to_datetime(df_admin["created_at"]).dt.tz_localize(None)
+
+    # 간단 KPI
+    total_attempts = len(df_admin)
+    avg_score = float(df_admin["score"].mean()) if "score" in df_admin else 0.0
+    c1, c2 = st.columns(2)
+    c1.metric("총 응시 수(최근 500)", total_attempts)
+    c2.metric("평균 점수", f"{avg_score:.2f} / {int(df_admin['quiz_len'].mode().iloc[0]) if 'quiz_len' in df_admin and len(df_admin['quiz_len'].mode()) else 10}")
+
+    st.divider()
+    st.dataframe(
+        df_admin.sort_values("created_at", ascending=False),
+        use_container_width=True,
+        hide_index=True,
+    )
+
 
 # ============================================================
 # ✅ 로그인 강제 + 상단 UI
@@ -339,7 +404,13 @@ colA, colB = st.columns([7, 3])
 with colA:
     st.caption("환영합니다 🙂")
 
+# ✅ 관리자만 보이는 버튼
 with colB:
+    if is_admin():
+        if st.button("📊 관리자 대시보드", use_container_width=True):
+            st.session_state.page = "admin"
+            st.rerun()
+with colC:
     if st.button("🚪 로그아웃", use_container_width=True):
         try:
             sb.auth.sign_out()
@@ -363,6 +434,12 @@ with colB:
 
         st.rerun()
 
+# ============================================================
+# ✅ 페이지 라우팅
+# ============================================================
+if st.session_state.get("page") == "admin":
+    render_admin_dashboard()
+    st.stop()
 
 # ============================================================
 # ✅ CSV 로드
@@ -804,3 +881,5 @@ if st.session_state.submitted:
 
     # ✅ 제출 후 상담 배너
     render_naver_talk()
+
+
