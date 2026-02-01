@@ -784,9 +784,13 @@ with colD:
         st.rerun()
 
 # ============================================================
-# ✅ 라우팅
+# ✅ 라우팅 (admin은 2중 잠금)
 # ============================================================
 if st.session_state.page == "admin":
+    if not is_admin():
+        st.session_state.page = "quiz"
+        st.warning("관리자 권한이 없습니다.")
+        st.rerun()
     render_admin_dashboard()
     st.stop()
 
