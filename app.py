@@ -682,13 +682,13 @@ def render_my_dashboard():
 if "page" not in st.session_state:
     st.session_state.page = "quiz"  # quiz | my | admin
 
-colA, colB, colC, colD = st.columns([5, 2, 2, 3])
+colA, colB, colC, colD = st.columns([6, 3, 2, 3])
 
 with colA:
     st.caption("환영합니다 🙂")
 
 with colB:
-    if st.button("📌 나의기록", use_container_width=True, key="btn_go_my"):
+    if st.button("📌 나의 기록", use_container_width=True, key="btn_go_my"):
         st.session_state.page = "my"
         st.rerun()
 
