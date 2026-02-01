@@ -10,31 +10,29 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # ============================================================
 cookies = EncryptedCookieManager(
     prefix="hatena_jlpt/",
-    password=st.secrets.get("COOKIE_PASSWORD", "change-me-please")  # secrets에 넣는 걸 추천
+    password=st.secrets.get("COOKIE_PASSWORD", "change-me-please")
 )
 if not cookies.ready():
     st.info("쿠키를 초기화하는 중입니다… 잠시 후 자동으로 다시 시도됩니다.")
     st.stop()
 
 # ============================================================
-# ✅ Streamlit 기본 설정 (반드시 가장 위, 첫 st.* 호출)
+# ✅ Streamlit 기본 설정
 # ============================================================
 st.set_page_config(page_title="JLPT Quiz", layout="centered")
 
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Kosugi+Maru&display=swap');
-
 :root{ --jp-rounded: "Kosugi Maru","Hiragino Sans","Yu Gothic","Meiryo",sans-serif; }
 .jp, .jp *{ font-family: var(--jp-rounded) !important; line-height:1.7; letter-spacing:.2px; }
 </style>
 """, unsafe_allow_html=True)
 
-# ✅ 1) 시험지 제목 수정
 st.title("い형용사 퀴즈")
 
 # ============================================================
-# ✅ Supabase 연결 (Secrets 필수)
+# ✅ Supabase 연결
 # ============================================================
 if "SUPABASE_URL" not in st.secrets or "SUPABASE_ANON_KEY" not in st.secrets:
     st.error("Supabase Secrets가 설정되지 않았습니다. (SUPABASE_URL / SUPABASE_ANON_KEY)")
@@ -48,14 +46,12 @@ sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 
 def get_authed_sb():
-    """
-    ✅ RLS 통과용: access_token을 PostgREST에 붙인 클라이언트
-    """
+    """✅ RLS 통과용: access_token을 PostgREST에 붙인 클라이언트"""
     token = st.session_state.get("access_token")
     if not token:
         return None
     sb2 = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-    sb2.postgrest.auth(token)  # 핵심
+    sb2.postgrest.auth(token)
     return sb2
 
 
@@ -63,12 +59,12 @@ def get_authed_sb():
 # ✅ 상수/설정
 # ============================================================
 NAVER_TALK_URL = "https://talk.naver.com/W45141"
-APP_URL = "https://hotenaquiztestapp-5wiha4zfuvtnq4qgxdhq72.streamlit.app/"  # 예: https://hotena-quiz-test-app.streamlit.app
+APP_URL = "https://hotenaquiztestapp-5wiha4zfuvtnq4qgxdhq72.streamlit.app/"
 LEVEL = "N4"
 N = 10
 
 # ============================================================
-# ✅ Admin 설정  ← 여기!
+# ✅ Admin 설정
 # ============================================================
 def get_admin_email_set() -> set[str]:
     raw = st.secrets.get("ADMIN_EMAILS", "")
@@ -81,11 +77,8 @@ def is_admin() -> bool:
         return False
     return email.strip().lower() in get_admin_email_set()
 
-# ✅ 2) 출제유형 2개(발음/뜻)
-QUIZ_TYPES = ["reading", "meaning"]
+# 출제유형
 quiz_label_map = {"reading": "발음", "meaning": "뜻"}
-
-# (DB 표시에 쓸 라벨)
 quiz_label_for_table = {"reading": "발음", "meaning": "뜻"}
 
 # ============================================================
@@ -94,22 +87,15 @@ quiz_label_for_table = {"reading": "발음", "meaning": "뜻"}
 def auth_box():
     st.subheader("로그인")
 
-    # ✅ (추가) 이메일 컨펌 링크로 들어온 경우 감지 → 로그인 화면으로 유도
-    qp = st.query_params  # Streamlit 최신
-    # (구버전이면 아래로 대체)
-    # qp = st.experimental_get_query_params()
-
-    # Supabase가 컨펌/복구/매직링크 등에서 자주 붙이는 키들(프로젝트 설정에 따라 다름)
+    qp = st.query_params
     came_from_email_link = any(k in qp for k in ["code", "token", "type", "access_token", "refresh_token"])
-
     if came_from_email_link and not st.session_state.get("email_link_notice_shown"):
         st.session_state.email_link_notice_shown = True
         st.session_state.auth_mode = "login"
         st.success("이메일 인증(또는 링크 확인)이 완료되었습니다. 이제 로그인해 주세요.")
-    
-    # ✅ 화면 모드 (로그인/회원가입) — 탭 대신 라디오
+
     if "auth_mode" not in st.session_state:
-        st.session_state.auth_mode = "login"  # 기본은 로그인
+        st.session_state.auth_mode = "login"
 
     mode = st.radio(
         label="",
@@ -119,10 +105,8 @@ def auth_box():
         key="auth_mode_radio",
         index=0 if st.session_state.auth_mode == "login" else 1,
     )
-
     st.session_state.auth_mode = mode
 
-    # ✅ 회원가입 성공 후 메시지 (로그인 화면 위에 노출)
     if st.session_state.get("signup_done"):
         st.success("회원가입 요청 완료! 이메일 인증이 필요할 수 있어요. 메일함을 확인한 뒤 로그인해 주세요.")
         st.session_state.signup_done = False
@@ -164,7 +148,6 @@ def auth_box():
         email = st.text_input("이메일", key="signup_email")
         pw = st.text_input("비밀번호", type="password", key="signup_pw")
 
-        # ✅ 여기서 무조건 먼저 정의 (UnboundLocalError 방지)
         pw_len = len(pw) if pw else 0
         pw_ok = pw_len >= 8
         email_ok = bool(email and email.strip())
@@ -173,7 +156,6 @@ def auth_box():
         if pw and not pw_ok:
             st.warning(f"비밀번호가 너무 짧습니다. (현재 {pw_len}자) 8자리 이상으로 입력해 주세요.")
 
-        # ✅ 버튼은 반드시 signup 블록 안에서만 렌더
         if st.button(
             "회원가입",
             use_container_width=True,
@@ -193,9 +175,7 @@ def auth_box():
                     {
                         "email": email,
                         "password": pw,
-                        "options": {
-                            "email_redirect_to": APP_URL
-                        },
+                        "options": {"email_redirect_to": APP_URL},
                     }
                 )
 
@@ -218,10 +198,7 @@ def auth_box():
                 st.stop()
 
 
-
-
 def restore_session_from_cookies():
-    # 이미 로그인 상태면 스킵
     if st.session_state.get("user") and st.session_state.get("access_token"):
         return
 
@@ -238,17 +215,12 @@ def restore_session_from_cookies():
         st.session_state.access_token = refreshed.session.access_token
         st.session_state.refresh_token = refreshed.session.refresh_token
 
-        # ✅ 쿠키 갱신
         cookies["access_token"] = refreshed.session.access_token
         cookies["refresh_token"] = refreshed.session.refresh_token
         cookies.save()
 
     except Exception:
         return
-
-
-# ✅ 앱 시작 시 1회 복원 시도
-restore_session_from_cookies()
 
 
 def require_login():
@@ -258,48 +230,52 @@ def require_login():
 
 
 def ensure_profile(sb_authed, user):
-    """profiles에 (id, email) upsert. 관리자 판별(is_admin) 기반 데이터 준비."""
+    """profiles에 (id, email) upsert"""
     try:
         sb_authed.table("profiles").upsert({
             "id": user.id,
             "email": getattr(user, "email", None),
         }).execute()
     except Exception:
-        # 실패해도 퀴즈 진행은 가능하게(조용히 무시)
         pass
 
 
-# ✅ 로그인 강제 (여기서부터 아래는 로그인 완료 상태)
+# ============================================================
+# ✅ 앱 시작: 쿠키 복원 → 로그인 강제
+# ============================================================
+restore_session_from_cookies()
 require_login()
 
-# ✅ 로그인 완료 후 user 확보
+# 로그인 완료 후 user 확보
 user = st.session_state.user
 user_id = user.id
-user_email = getattr(user, "email", None)
 
-# ✅ RLS용 클라이언트 + profiles upsert (딱 1번만)
+# ✅ user_email 안정적으로 확보 (중요)
+user_email = getattr(user, "email", None)
+if not user_email:
+    user_email = st.session_state.get("login_email")  # fallback
+
+# RLS용 client + profiles upsert
 sb_authed = get_authed_sb()
 if sb_authed is not None:
     ensure_profile(sb_authed, user)
 
 
 # ============================================================
-# ✅ DB 저장/조회 함수 (반드시 sb_authed로 호출)
+# ✅ DB 저장/조회 함수
 # ============================================================
 def save_attempt_to_db(sb_authed, user_id, user_email, level, quiz_type, quiz_len, score, wrong_list):
     payload = {
         "user_id": user_id,
-        "user_email": user_email,   # ✅ 추가
+        "user_email": user_email,
         "level": level,
         "pos_mode": quiz_type,
         "quiz_len": int(quiz_len),
         "score": int(score),
         "wrong_count": int(len(wrong_list)),
         "wrong_list": wrong_list,
-        
     }
     sb_authed.table("quiz_attempts").insert(payload).execute()
-
 
 def fetch_recent_attempts(sb_authed, user_id, limit=10):
     return (
@@ -330,7 +306,6 @@ def render_naver_talk():
   70% {{ transform: scale(2.2); opacity: 0; }}
   100% {{ transform: scale(2.2); opacity: 0; }}
 }}
-
 .floating-naver-talk,
 .floating-naver-talk:visited,
 .floating-naver-talk:hover,
@@ -342,12 +317,10 @@ def render_naver_talk():
   text-decoration: none !important;
   color: inherit !important;
 }}
-
 .floating-wrap {{
   position: relative;
   animation: floaty 2.2s ease-in-out infinite;
 }}
-
 .talk-btn {{
   background: #03C75A;
   color: #fff;
@@ -364,9 +337,7 @@ def render_naver_talk():
   line-height: 1.1;
   text-decoration: none !important;
 }}
-
 .talk-btn:hover {{ filter: brightness(0.95); }}
-
 .talk-text small {{
   display: block;
   font-size: 12px;
@@ -374,7 +345,6 @@ def render_naver_talk():
   opacity: 0.95;
   margin-top: 2px;
 }}
-
 .badge {{
   position: absolute;
   top: -6px;
@@ -385,7 +355,6 @@ def render_naver_talk():
   border-radius: 999px;
   box-shadow: 0 6px 14px rgba(0,0,0,0.25);
 }}
-
 .badge::after {{
   content: "";
   position: absolute;
@@ -398,7 +367,6 @@ def render_naver_talk():
   background: rgba(255,59,48,0.55);
   animation: ping 1.2s ease-out infinite;
 }}
-
 @media (max-width: 600px) {{
   .floating-naver-talk {{ bottom: 110px; right: 14px; }}
   .talk-btn {{ padding: 13px 16px; font-size: 14px; }}
@@ -422,96 +390,74 @@ def render_naver_talk():
         unsafe_allow_html=True,
     )
 
+
+# ============================================================
+# ✅ 관리자 대시보드 (단 1개만 존재)
+# ============================================================
 def render_admin_dashboard():
     st.subheader("📊 관리자 대시보드")
 
-    # ✅ 권한 체크(버튼이 숨겨져 있어도, 강제로 접근할 수 있으니 여기서도 막기)
     if not is_admin():
         st.error("접근 권한이 없습니다.")
         st.session_state.page = "quiz"
         st.stop()
 
-    # 돌아가기
     if st.button("← 퀴즈로 돌아가기", use_container_width=True):
         st.session_state.page = "quiz"
         st.rerun()
 
-    sb_authed = get_authed_sb()
-    if sb_authed is None:
+    sb_authed_local = get_authed_sb()
+    if sb_authed_local is None:
         st.warning("토큰(sb_authed)이 없습니다. 로그인 세션 토큰 확인이 필요합니다.")
         st.stop()
 
-    st.caption("DEBUG: 관리자 조회를 시작합니다…")
-
-    # ✅ 1) 쿼리 실행 + 에러/데이터 강제 표시
     try:
         res = (
-            sb_authed.table("quiz_attempts")
+            sb_authed_local.table("quiz_attempts")
             .select("created_at, user_id, user_email, level, pos_mode, quiz_len, score, wrong_count")
             .order("created_at", desc=True)
-            .limit(200)
+            .limit(500)
             .execute()
         )
-
         rows = len(res.data) if getattr(res, "data", None) else 0
-        st.success(f"DEBUG: quiz_attempts rows = {rows}")
-
-        # 샘플 1개 보여주기(형태 확인)
-        if rows > 0:
-            st.json(res.data[0])
-        else:
-            st.info("DEBUG: 데이터가 0건입니다. (또는 RLS가 전체 조회를 막고 있을 수 있습니다.)")
+        st.caption(f"DEBUG: quiz_attempts rows = {rows}")
 
     except Exception as e:
-        st.error("❌ 관리자 조회 실패 (RLS/권한/테이블명/컬럼명 가능성)")
+        st.error("❌ 관리자 조회 실패 (RLS/권한/테이블/컬럼 확인 필요)")
         st.exception(e)
         st.stop()
 
-    # ✅ 2) 표로 출력
-    if rows > 0:
-        df_admin = pd.DataFrame(res.data).copy()
-        df_admin["created_at"] = pd.to_datetime(df_admin["created_at"]).dt.tz_localize(None)
+    if rows <= 0:
+        st.info("데이터가 없거나 RLS 정책 때문에 전체 조회가 막혀 있습니다.")
+        st.write("- Supabase Table Editor에서 quiz_attempts에 실제 데이터가 있는지 확인")
+        st.write("- 데이터가 있는데도 0건이면 → RLS에서 관리자 전체 조회 허용 정책이 필요합니다.")
+        return
 
-        st.divider()
+    df_admin = pd.DataFrame(res.data).copy()
+    df_admin["created_at"] = pd.to_datetime(df_admin["created_at"]).dt.tz_localize(None)
 
-        c1, c2, c3 = st.columns(3)
-        c1.metric("최근 200건", rows)
-        c2.metric("평균 점수", f"{df_admin['score'].mean():.2f}")
-        c3.metric("평균 오답", f"{df_admin['wrong_count'].mean():.2f}")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("최근 500건", rows)
+    c2.metric("평균 점수", f"{df_admin['score'].mean():.2f}")
+    c3.metric("평균 오답", f"{df_admin['wrong_count'].mean():.2f}")
 
-        st.dataframe(
-            df_admin,
-            use_container_width=True,
-            hide_index=True,
-        )
+    st.dataframe(df_admin, use_container_width=True, hide_index=True)
 
-        # (선택) CSV 다운로드
-        csv = df_admin.to_csv(index=False).encode("utf-8-sig")
-        st.download_button("⬇️ CSV 다운로드", csv, file_name="quiz_attempts_admin.csv", use_container_width=True)
-
-    # ✅ 3) RLS 안내(추가 힌트)
-    st.divider()
-    st.markdown("### 🔎 만약 데이터가 0건이라면?")
-    st.write("- Supabase Table Editor에서 quiz_attempts에 실제 데이터가 있는지 확인")
-    st.write("- 데이터가 있는데도 0건이면 → RLS가 관리자 전체 조회를 막고 있을 가능성이 큽니다.")
+    csv = df_admin.to_csv(index=False).encode("utf-8-sig")
+    st.download_button("⬇️ CSV 다운로드", csv, file_name="quiz_attempts_admin.csv", use_container_width=True)
 
 
 # ============================================================
-# ✅ 로그인 강제 + 상단 UI
+# ✅ 상단 UI (로그인 표시 + 관리자 버튼 + 로그아웃)
 # ============================================================
-require_login()
-user = st.session_state.user
-user_id = user.id
-
-# 로그인 표시 + 로그아웃 + (관리자만) 대시보드 버튼
 if "page" not in st.session_state:
-    st.session_state.page = "quiz"  # "quiz" or "admin"
+    st.session_state.page = "quiz"
 
 colA, colB, colC = st.columns([5, 2, 3])
 
 with colA:
     st.caption("환영합니다 🙂")
- 
+
 with colB:
     if is_admin():
         if st.button("📊 관리자 대시보드", use_container_width=True):
@@ -543,12 +489,14 @@ with colC:
 
         st.rerun()
 
+
 # ============================================================
 # ✅ 페이지 라우팅
 # ============================================================
 if st.session_state.get("page") == "admin":
     render_admin_dashboard()
     st.stop()
+
 
 # ============================================================
 # ✅ CSV 로드
@@ -563,9 +511,8 @@ if len(df.columns) == 1 and "\t" in df.columns[0]:
 df.columns = df.columns.astype(str).str.replace("\ufeff", "", regex=False).str.strip()
 
 pool = df[df["level"] == LEVEL].copy()
-
-# ✅ i형용사만 사용
 pool_i = pool[pool["pos"] == "i_adj"].copy()
+
 if len(pool_i) < N:
     st.error(f"い형용사 단어가 부족합니다: pool={len(pool_i)}")
     st.stop()
@@ -575,24 +522,19 @@ if len(pool_i) < N:
 # ✅ 퀴즈 로직
 # ============================================================
 def make_question(row: pd.Series, qtype: str, base_pool: pd.DataFrame) -> dict:
-    # ✅ 3) 문제 글 내용: 선택한 유형에 따라 통일
     if qtype == "reading":
         prompt = f"{row['jp_word']}의 발음은?"
         correct = row["reading"]
         candidates = (
             base_pool[base_pool["reading"] != correct]["reading"]
-            .dropna()
-            .drop_duplicates()
-            .tolist()
+            .dropna().drop_duplicates().tolist()
         )
     else:
         prompt = f"{row['jp_word']}의 뜻은?"
         correct = row["meaning"]
         candidates = (
             base_pool[base_pool["meaning"] != correct]["meaning"]
-            .dropna()
-            .drop_duplicates()
-            .tolist()
+            .dropna().drop_duplicates().tolist()
         )
 
     if len(candidates) < 3:
@@ -614,12 +556,9 @@ def make_question(row: pd.Series, qtype: str, base_pool: pd.DataFrame) -> dict:
         "qtype": qtype,
     }
 
-
 def build_quiz(qtype: str) -> list:
-    # ✅ 4) 문제 비중: 선택한 유형으로 10문항 전부
     sampled = pool_i.sample(n=N).reset_index(drop=True)
     return [make_question(sampled.iloc[i], qtype, pool_i) for i in range(len(sampled))]
-
 
 def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
     wrong_words = list({w["단어"] for w in wrong_list})
@@ -647,7 +586,6 @@ if "wrong_list" not in st.session_state:
 if "saved_this_attempt" not in st.session_state:
     st.session_state.saved_this_attempt = False
 
-# 누적(세션) 통계
 if "history" not in st.session_state:
     st.session_state.history = []
 if "wrong_counter" not in st.session_state:
@@ -702,7 +640,7 @@ st.divider()
 
 
 # ============================================================
-# ✅ answers 길이 자동 맞춤 (오답 재도전 대비)
+# ✅ answers 길이 자동 맞춤
 # ============================================================
 quiz_len = len(st.session_state.quiz)
 if "answers" not in st.session_state or len(st.session_state.answers) != quiz_len:
@@ -714,12 +652,10 @@ if "answers" not in st.session_state or len(st.session_state.answers) != quiz_le
 # ============================================================
 for idx, q in enumerate(st.session_state.quiz):
     st.subheader(f"Q{idx+1}")
-
     st.markdown(
         f'<div class="jp" style="font-size:18px; font-weight:500;">{q["prompt"]}</div>',
         unsafe_allow_html=True
     )
-
     choice = st.radio(
         label="보기",
         options=q["choices"],
@@ -778,18 +714,16 @@ if st.session_state.submitted:
     else:
         st.warning("💪 괜찮아요! 틀린 문제는 성장의 재료예요. 다시 한 번 도전해봐요.")
 
-    # ✅ DB 저장/조회는 sb_authed로만 (RLS 정책 통과)
-    sb_authed = get_authed_sb()
-    if sb_authed is None:
+    sb_authed_local = get_authed_sb()
+    if sb_authed_local is None:
         st.warning("DB 저장/조회용 토큰이 없습니다. (로그인 세션 토큰 확인 필요)")
     else:
-        # ✅ DB 저장(한 번만)
         if not st.session_state.saved_this_attempt:
             try:
                 save_attempt_to_db(
-                    sb_authed=sb_authed,
+                    sb_authed=sb_authed_local,
                     user_id=user_id,
-                    user_email=user_email,  # ✅ 추가!!
+                    user_email=user_email,
                     level=LEVEL,
                     quiz_type=st.session_state.quiz_type,
                     quiz_len=quiz_len,
@@ -804,7 +738,7 @@ if st.session_state.submitted:
         st.subheader("📌 내 최근 기록")
 
         try:
-            res = fetch_recent_attempts(sb_authed, user_id, limit=10)
+            res = fetch_recent_attempts(sb_authed_local, user_id, limit=10)
 
             if not res.data:
                 st.info("아직 저장된 기록이 없습니다. 문제를 풀고 제출하면 기록이 쌓여요.")
@@ -812,7 +746,6 @@ if st.session_state.submitted:
                 hist = pd.DataFrame(res.data).copy()
                 hist["created_at"] = pd.to_datetime(hist["created_at"]).dt.tz_localize(None)
 
-                # pos_mode 컬럼에 reading/meaning이 저장되므로 라벨 변환
                 hist["유형"] = hist["pos_mode"].map(lambda x: quiz_label_for_table.get(x, x))
                 hist["정답률"] = (hist["score"] / hist["quiz_len"]).fillna(0)
 
@@ -826,103 +759,10 @@ if st.session_state.submitted:
                 c2.metric("최고 점수", f"{best} / {N}")
                 c3.metric("최근 점수", f"{last_score} / {last_total}")
 
-                st.divider()
-
-                st.markdown(
-                    """
-<style>
-.record-card{
-  border: 1px solid rgba(120,120,120,0.25);
-  border-radius: 16px;
-  padding: 14px 14px;
-  margin-bottom: 10px;
-  background: rgba(255,255,255,0.02);
-}
-.record-top{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:12px;
-  margin-bottom: 8px;
-}
-.record-title{
-  font-weight: 800;
-  font-size: 16px;
-}
-.record-sub{
-  opacity: 0.75;
-  font-size: 12px;
-}
-.pill{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  border: 1px solid rgba(120,120,120,0.25);
-  background: rgba(255,255,255,0.03);
-}
-</style>
-""",
-                    unsafe_allow_html=True,
-                )
-
-                for _, r in hist.iterrows():
-                    dt = r["created_at"].strftime("%Y-%m-%d %H:%M")
-                    mode = r["유형"]
-                    score_i = int(r["score"])
-                    total = int(r["quiz_len"])
-                    wrong = int(r["wrong_count"])
-                    pct = float(r["정답률"] * 100)
-
-                    if pct >= 90:
-                        badge = "🏆"
-                    elif pct >= 70:
-                        badge = "👍"
-                    else:
-                        badge = "💪"
-
-                    st.markdown(
-                        f"""
-<div class="record-card">
-  <div class="record-top">
-    <div>
-      <div class="record-title">{badge} {score_i} / {total}</div>
-      <div class="record-sub">{dt} · {mode} · 레벨 {LEVEL}</div>
-    </div>
-    <div class="pill">오답 {wrong}개</div>
-  </div>
-</div>
-""",
-                        unsafe_allow_html=True,
-                    )
-                    st.progress(min(max(pct / 100.0, 0.0), 1.0))
-                    st.caption(f"정답률 {pct:.0f}%")
-                    st.write("")
-
-                with st.expander("표로도 보기(관리자/디버그용)"):
-                    show = hist.rename(columns={
-                        "created_at": "일시",
-                        "level": "레벨",
-                        "pos_mode": "quiz_type(원값)",
-                        "quiz_len": "문항",
-                        "score": "점수",
-                        "wrong_count": "오답",
-                    })
-                    show["일시"] = show["일시"].dt.strftime("%Y-%m-%d %H:%M")
-                    st.dataframe(
-                        show[["일시", "레벨", "유형", "문항", "점수", "오답", "quiz_type(원값)"]],
-                        use_container_width=True,
-                        hide_index=True,
-                    )
-
         except Exception as e:
             st.info("기록을 불러오지 못했습니다. (DB/RLS 확인 필요)")
             st.write(getattr(e, "args", e))
 
-    # ✅ 세션 누적 통계(원래 기능 유지)
     st.session_state.history.append({"type": st.session_state.quiz_type, "score": score, "total": quiz_len})
 
     for idx, q in enumerate(st.session_state.quiz):
@@ -931,7 +771,6 @@ if st.session_state.submitted:
         if st.session_state.answers[idx] != q["correct_text"]:
             st.session_state.wrong_counter[word] = st.session_state.wrong_counter.get(word, 0) + 1
 
-    # ✅ 오답 있을 때만: 오답 재도전 + 오답 노트
     if st.session_state.wrong_list:
         st.subheader("❌ 오답 노트")
 
@@ -943,25 +782,6 @@ if st.session_state.submitted:
             st.session_state.quiz_version += 1
             st.rerun()
 
-        for w in st.session_state.wrong_list:
-            st.markdown(
-                f"""
-**Q{w['No']}**
-
-- 문제: {w['문제']}
-- ❌ 내 답: **{w['내 답']}**
-- ✅ 정답: **{w['정답']}**
-
-📌 단어 정리  
-- 표기: **{w['단어']}**  
-- 읽기: {w['읽기']}  
-- 뜻: {w['뜻']}
-
----
-"""
-            )
-
-    # ✅ 누적 현황(이번 세션)
     st.divider()
     st.subheader("📊 누적 학습 현황 (이번 세션)")
 
@@ -989,7 +809,4 @@ if st.session_state.submitted:
         st.session_state.total_counter = {}
         st.rerun()
 
-    # ✅ 제출 후 상담 배너
     render_naver_talk()
-
-
