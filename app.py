@@ -13,6 +13,7 @@ cookies = EncryptedCookieManager(
     password=st.secrets.get("COOKIE_PASSWORD", "change-me-please")  # secrets에 넣는 걸 추천
 )
 if not cookies.ready():
+    st.info("쿠키를 초기화하는 중입니다… 잠시 후 자동으로 다시 시도됩니다.")
     st.stop()
 
 # ============================================================
