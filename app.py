@@ -5,6 +5,7 @@ import streamlit as st
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
 
+
 # ============================================================
 # ✅ Cookies
 # ============================================================
@@ -15,6 +16,7 @@ cookies = EncryptedCookieManager(
 if not cookies.ready():
     st.info("쿠키를 초기화하는 중입니다… 잠시 후 자동으로 다시 시도됩니다.")
     st.stop()
+
 
 # ============================================================
 # ✅ Streamlit 기본 설정
@@ -30,6 +32,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("い형용사 퀴즈")
+
 
 # ============================================================
 # ✅ Supabase 연결
@@ -63,6 +66,10 @@ APP_URL = "https://hotenaquiztestapp-5wiha4zfuvtnq4qgxdhq72.streamlit.app/"
 LEVEL = "N4"
 N = 10
 
+quiz_label_map = {"reading": "발음", "meaning": "뜻"}
+quiz_label_for_table = {"reading": "발음", "meaning": "뜻"}
+
+
 # ============================================================
 # ✅ Admin 설정
 # ============================================================
@@ -70,16 +77,17 @@ def get_admin_email_set() -> set[str]:
     raw = st.secrets.get("ADMIN_EMAILS", "")
     return {e.strip().lower() for e in raw.split(",") if e.strip()}
 
+
 def is_admin() -> bool:
+    # ✅ user.email이 없을 때 login_email로도 판별
     u = st.session_state.get("user")
-    email = getattr(u, "email", None)
+    email = getattr(u, "email", None) if u else None
+    if not email:
+        email = st.session_state.get("login_email")
     if not email:
         return False
     return email.strip().lower() in get_admin_email_set()
 
-# 출제유형
-quiz_label_map = {"reading": "발음", "meaning": "뜻"}
-quiz_label_for_table = {"reading": "발음", "meaning": "뜻"}
 
 # ============================================================
 # ✅ 로그인 UI
@@ -87,6 +95,7 @@ quiz_label_for_table = {"reading": "발음", "meaning": "뜻"}
 def auth_box():
     st.subheader("로그인")
 
+    # 이메일 컨펌/매직링크 등으로 들어온 경우 감지
     qp = st.query_params
     came_from_email_link = any(k in qp for k in ["code", "token", "type", "access_token", "refresh_token"])
     if came_from_email_link and not st.session_state.get("email_link_notice_shown"):
@@ -111,6 +120,9 @@ def auth_box():
         st.success("회원가입 요청 완료! 이메일 인증이 필요할 수 있어요. 메일함을 확인한 뒤 로그인해 주세요.")
         st.session_state.signup_done = False
 
+    # ----------------------------
+    # 로그인
+    # ----------------------------
     if mode == "login":
         email = st.text_input("이메일", key="login_email")
         pw = st.text_input("비밀번호", type="password", key="login_pw")
@@ -124,6 +136,7 @@ def auth_box():
                 res = sb.auth.sign_in_with_password({"email": email, "password": pw})
 
                 st.session_state.user = res.user
+                st.session_state["login_email"] = email.strip()  # ✅ 중요: fallback용
 
                 if res.session and res.session.access_token:
                     st.session_state.access_token = res.session.access_token
@@ -144,6 +157,9 @@ def auth_box():
                 st.error("로그인 실패: 이메일/비밀번호 또는 이메일 인증 상태를 확인해주세요.")
                 st.stop()
 
+    # ----------------------------
+    # 회원가입
+    # ----------------------------
     else:
         email = st.text_input("이메일", key="signup_email")
         pw = st.text_input("비밀번호", type="password", key="signup_pw")
@@ -198,6 +214,9 @@ def auth_box():
                 st.stop()
 
 
+# ============================================================
+# ✅ 쿠키로 세션 복원
+# ============================================================
 def restore_session_from_cookies():
     if st.session_state.get("user") and st.session_state.get("access_token"):
         return
@@ -209,17 +228,33 @@ def restore_session_from_cookies():
     try:
         refreshed = sb.auth.refresh_session(rt)
         if not refreshed or not refreshed.session:
+            # refresh_token이 invalid인 경우 쿠키 정리(선택)
+            cookies["access_token"] = ""
+            cookies["refresh_token"] = ""
+            cookies.save()
             return
 
         st.session_state.user = refreshed.user
         st.session_state.access_token = refreshed.session.access_token
         st.session_state.refresh_token = refreshed.session.refresh_token
 
+        # login_email fallback용(가능하면 채워둠)
+        u_email = getattr(refreshed.user, "email", None)
+        if u_email:
+            st.session_state["login_email"] = u_email.strip()
+
         cookies["access_token"] = refreshed.session.access_token
         cookies["refresh_token"] = refreshed.session.refresh_token
         cookies.save()
 
     except Exception:
+        # refresh 실패 시 쿠키 정리(선택)
+        try:
+            cookies["access_token"] = ""
+            cookies["refresh_token"] = ""
+            cookies.save()
+        except Exception:
+            pass
         return
 
 
@@ -246,16 +281,12 @@ def ensure_profile(sb_authed, user):
 restore_session_from_cookies()
 require_login()
 
-# 로그인 완료 후 user 확보
 user = st.session_state.user
 user_id = user.id
 
-# ✅ user_email 안정적으로 확보 (중요)
-user_email = getattr(user, "email", None)
-if not user_email:
-    user_email = st.session_state.get("login_email")  # fallback
+# ✅ user_email 안정적으로 확보
+user_email = getattr(user, "email", None) or st.session_state.get("login_email")
 
-# RLS용 client + profiles upsert
 sb_authed = get_authed_sb()
 if sb_authed is not None:
     ensure_profile(sb_authed, user)
@@ -276,6 +307,7 @@ def save_attempt_to_db(sb_authed, user_id, user_email, level, quiz_type, quiz_le
         "wrong_list": wrong_list,
     }
     sb_authed.table("quiz_attempts").insert(payload).execute()
+
 
 def fetch_recent_attempts(sb_authed, user_id, limit=10):
     return (
@@ -484,7 +516,8 @@ with colC:
             "quiz", "answers", "submitted", "wrong_list",
             "quiz_version", "quiz_type", "saved_this_attempt",
             "history", "wrong_counter", "total_counter",
-            "page",
+            "page", "login_email", "email_link_notice_shown",
+            "auth_mode", "signup_done", "last_signup_ts",
         ]:
             st.session_state.pop(k, None)
 
@@ -557,9 +590,11 @@ def make_question(row: pd.Series, qtype: str, base_pool: pd.DataFrame) -> dict:
         "qtype": qtype,
     }
 
+
 def build_quiz(qtype: str) -> list:
     sampled = pool_i.sample(n=N).reset_index(drop=True)
     return [make_question(sampled.iloc[i], qtype, pool_i) for i in range(len(sampled))]
+
 
 def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
     wrong_words = list({w["단어"] for w in wrong_list})
@@ -765,6 +800,7 @@ if st.session_state.submitted:
             st.info("기록을 불러오지 못했습니다. (DB/RLS 확인 필요)")
             st.write(getattr(e, "args", e))
 
+    # 세션 누적 통계
     st.session_state.history.append({"type": st.session_state.quiz_type, "score": score, "total": quiz_len})
 
     for idx, q in enumerate(st.session_state.quiz):
