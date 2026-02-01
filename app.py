@@ -86,6 +86,7 @@ def clear_auth_everywhere():
         "page",
         "quiz", "answers", "submitted", "wrong_list",
         "quiz_version", "quiz_type", "saved_this_attempt",
+        "stats_saved_this_attempt",
         "history", "wrong_counter", "total_counter",
         "attendance_checked", "streak_count", "did_attend_today",
         "is_admin_cached",
@@ -241,6 +242,31 @@ def fetch_is_admin_from_db(sb_authed, user_id):
     except Exception:
         pass
     return False
+
+# ============================================================
+# ✅ FIX: 단어별 정오답 저장은 "RPC(record_word_result)"로만 처리
+# - SQL에서 만든 record_word_result(p_word_key,p_level,p_pos,p_quiz_type,p_is_correct) 사용
+# - events + user_word_stats 누적을 DB가 처리 (가장 안정적)
+# ============================================================
+def save_word_stats_via_rpc(sb_authed, quiz: list[dict], answers: list, quiz_type: str, level: str):
+    for idx, q in enumerate(quiz):
+        word_key = (str(q.get("jp_word", "")).strip() or str(q.get("reading", "")).strip())
+        if not word_key:
+            continue
+
+        is_correct = (answers[idx] == q.get("correct_text"))
+        pos = str(q.get("pos", "") or "")
+
+        sb_authed.rpc(
+            "record_word_result",
+            {
+                "p_word_key": word_key,
+                "p_level": level,
+                "p_pos": pos,
+                "p_quiz_type": quiz_type,
+                "p_is_correct": bool(is_correct),
+            },
+        ).execute()
 
 # ============================================================
 # ✅ Admin 설정 (secrets + DB 혼합)
@@ -926,6 +952,8 @@ if "wrong_list" not in st.session_state:
     st.session_state.wrong_list = []
 if "saved_this_attempt" not in st.session_state:
     st.session_state.saved_this_attempt = False
+if "stats_saved_this_attempt" not in st.session_state:
+    st.session_state.stats_saved_this_attempt = False
 
 # 누적(세션) 통계
 if "history" not in st.session_state:
@@ -956,6 +984,7 @@ if selected != st.session_state.quiz_type:
     st.session_state.submitted = False
     st.session_state.wrong_list = []
     st.session_state.saved_this_attempt = False
+    st.session_state.stats_saved_this_attempt = False
     st.session_state.quiz_version += 1
     st.rerun()
 
@@ -969,6 +998,7 @@ with col1:
         st.session_state.submitted = False
         st.session_state.wrong_list = []
         st.session_state.saved_this_attempt = False
+        st.session_state.stats_saved_this_attempt = False
         st.session_state.quiz_version += 1
         st.rerun()
 
@@ -1063,6 +1093,9 @@ if st.session_state.submitted:
     if sb_authed_local is None:
         st.warning("DB 저장/조회용 토큰이 없습니다. 다시 로그인해 주세요.")
     else:
+        # ============================================================
+        # ✅ (1) quiz_attempts 저장(1회)
+        # ============================================================
         if not st.session_state.saved_this_attempt:
             def _save():
                 return save_attempt_to_db(
@@ -1082,6 +1115,27 @@ if st.session_state.submitted:
             except Exception as e:
                 st.warning("DB 저장에 실패했습니다. (테이블/컬럼/권한/RLS 정책 확인 필요)")
                 st.write(str(e))
+
+        # ============================================================
+        # ✅ FIX (2) 단어별 정오답 stats 저장(제출 1회)
+        # - direct insert가 아니라 RPC(record_word_result) 호출
+        # ============================================================
+        if not st.session_state.stats_saved_this_attempt:
+            def _save_stats():
+                return save_word_stats_via_rpc(
+                    sb_authed=sb_authed_local,
+                    quiz=st.session_state.quiz,
+                    answers=st.session_state.answers,
+                    quiz_type=st.session_state.quiz_type,
+                    level=LEVEL,
+                )
+
+            try:
+                run_db(_save_stats)
+                st.session_state.stats_saved_this_attempt = True
+            except Exception:
+                # stats 저장 실패해도 앱은 정상 진행
+                st.caption("※ 단어 통계(stats) 저장이 실패했습니다. (RPC/권한/RLS 확인 필요)")
 
         st.subheader("📌 내 최근 기록")
 
@@ -1206,6 +1260,7 @@ if st.session_state.submitted:
             st.session_state.submitted = False
             st.session_state.wrong_list = []
             st.session_state.saved_this_attempt = False
+            st.session_state.stats_saved_this_attempt = False
             st.session_state.quiz_version += 1
             st.rerun()
 
