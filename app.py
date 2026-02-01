@@ -782,7 +782,6 @@ pool_i_reading = pool_i[
 
 # ✅ 뜻(meaning)용: 한자 없어도 포함 (히라가나-only 포함)
 pool_i_meaning = pool_i.copy()
-st.write("jp_word 빈 i_adj 개수:", (pool_i_meaning["jp_word"].astype(str).str.strip() == "").sum())
 
 
 if len(pool_i) < N:
