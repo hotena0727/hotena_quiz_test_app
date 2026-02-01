@@ -656,21 +656,24 @@ def render_my_dashboard():
         st.caption(f"정답률 {pct:.0f}%")
         st.write("")
 
-    with st.expander("표로 보기"):
-        show = hist.rename(columns={
-            "created_at": "일시",
-            "level": "레벨",
-            "pos_mode": "quiz_type(원값)",
-            "quiz_len": "문항",
-            "score": "점수",
-            "wrong_count": "오답",
-        })
-        show["일시"] = pd.to_datetime(show["일시"]).dt.strftime("%Y-%m-%d %H:%M")
-        st.dataframe(
-            show[["일시", "레벨", "유형", "문항", "점수", "오답", "quiz_type(원값)"]],
-            use_container_width=True,
-            hide_index=True,
-        )
+    # ✅ 학생 화면에서는 expander(표로 보기) 숨김
+    if is_admin():
+        with st.expander("표로 보기"):
+            show = hist.rename(columns={
+                "created_at": "일시",
+                "level": "레벨",
+                "pos_mode": "quiz_type(원값)",
+                "quiz_len": "문항",
+                "score": "점수",
+                "wrong_count": "오답",
+            })
+            show["일시"] = pd.to_datetime(show["일시"]).dt.strftime("%Y-%m-%d %H:%M")
+            st.dataframe(
+                show[["일시", "레벨", "유형", "문항", "점수", "오답", "quiz_type(원값)"]],
+                use_container_width=True,
+                hide_index=True,
+            )
+
 
 
 # ============================================================
