@@ -399,17 +399,21 @@ require_login()
 user = st.session_state.user
 user_id = user.id
 
-# 로그인 표시 + 로그아웃
-colA, colB = st.columns([7, 3])
+# 로그인 표시 + 로그아웃 + (관리자만) 대시보드 버튼
+if "page" not in st.session_state:
+    st.session_state.page = "quiz"  # "quiz" or "admin"
+
+colA, colB, colC = st.columns([5, 2, 3])
+
 with colA:
     st.caption("환영합니다 🙂")
 
-# ✅ 관리자만 보이는 버튼
 with colB:
     if is_admin():
         if st.button("📊 관리자 대시보드", use_container_width=True):
             st.session_state.page = "admin"
             st.rerun()
+
 with colC:
     if st.button("🚪 로그아웃", use_container_width=True):
         try:
@@ -429,6 +433,7 @@ with colC:
             "quiz", "answers", "submitted", "wrong_list",
             "quiz_version", "quiz_type", "saved_this_attempt",
             "history", "wrong_counter", "total_counter",
+            "page",
         ]:
             st.session_state.pop(k, None)
 
@@ -437,7 +442,7 @@ with colC:
 # ============================================================
 # ✅ 페이지 라우팅
 # ============================================================
-if st.session_state.get("page") == "admin":
+if st.session_state.get("") == "admin":
     render_admin_dashboard()
     st.stop()
 
