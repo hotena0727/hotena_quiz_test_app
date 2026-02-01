@@ -228,11 +228,16 @@ def auth_box():
         email = st.text_input("이메일", key="login_email_input")
         pw = st.text_input("비밀번호", type="password", key="login_pw_input")
 
+        # ✅ 로그인 화면 힌트(버튼 막지 않고 안내만)
+        st.caption("비밀번호는 **회원가입 때 8자리 이상**으로 설정했을 가능성이 큽니다.")
+        if pw and len(pw) < 8:
+            st.warning(f"입력하신 비밀번호가 {len(pw)}자리입니다. 회원가입 때 8자리 이상으로 설정하셨다면 더 길게 입력해 주세요.")
+
         if st.button("로그인", use_container_width=True, key="btn_login"):
             if not email or not pw:
                 st.warning("이메일과 비밀번호를 입력해주세요.")
                 st.stop()
-
+              
             try:
                 res = sb.auth.sign_in_with_password({"email": email, "password": pw})
 
