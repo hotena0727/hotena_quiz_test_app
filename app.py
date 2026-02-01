@@ -220,6 +220,7 @@ require_login()
 # ✅ 로그인 완료 후 user 확보
 user = st.session_state.user
 user_id = user.id
+user_email = getattr(user, "email", None)
 
 # ✅ RLS용 클라이언트 + profiles upsert (딱 1번만)
 sb_authed = get_authed_sb()
@@ -230,16 +231,17 @@ if sb_authed is not None:
 # ============================================================
 # ✅ DB 저장/조회 함수 (반드시 sb_authed로 호출)
 # ============================================================
-def save_attempt_to_db(sb_authed, user_id, level, quiz_type, quiz_len, score, wrong_list):
+def save_attempt_to_db(sb_authed, user_id, user_email, level, quiz_type, quiz_len, score, wrong_list):
     payload = {
         "user_id": user_id,
+        "user_email": user_email,   # ✅ 추가
         "level": level,
-        # ✅ 기존 pos_mode 대신 quiz_type 저장(테이블 컬럼명이 pos_mode면 아래 한 줄만 pos_mode로 바꿔도 됨)
         "pos_mode": quiz_type,
         "quiz_len": int(quiz_len),
         "score": int(score),
         "wrong_count": int(len(wrong_list)),
-        "wrong_list": wrong_list,  # jsonb
+        "wrong_list": wrong_list,
+        
     }
     sb_authed.table("quiz_attempts").insert(payload).execute()
 
