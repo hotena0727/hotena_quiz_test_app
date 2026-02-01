@@ -452,8 +452,7 @@ def render_admin_dashboard():
             .execute()
         )
         rows = len(res.data) if getattr(res, "data", None) else 0
-        st.caption(f"DEBUG: quiz_attempts rows = {rows}")
-
+        
     except Exception as e:
         st.error("❌ 관리자 조회 실패 (RLS/권한/테이블/컬럼 확인 필요)")
         st.exception(e)
