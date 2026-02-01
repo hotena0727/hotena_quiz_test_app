@@ -338,7 +338,6 @@ user_id = user.id
 colA, colB = st.columns([7, 3])
 with colA:
     st.caption("환영합니다 🙂")
-    st.caption(f"token: {'OK' if st.session_state.get('access_token') else 'NONE'}")
 
 with colB:
     if st.button("🚪 로그아웃", use_container_width=True):
