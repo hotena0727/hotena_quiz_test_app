@@ -765,9 +765,8 @@ for c in required_cols:
     # 문자열로 들어온 'nan' 제거(keep_default_na=False일 때 대비)
     df[c] = df[c].replace({"nan": "", "NaN": "", "NULL": "", "null": "", "None": "", "none": ""})
 
-# ✅ 최종 필터: 빈 값 제거
+# ✅ jp_word(한자)는 비어도 OK (뜻 퀴즈에서 히라가나-only를 보여줘야 하니까)
 df = df[
-    (df["jp_word"] != "") &
     (df["reading"] != "") &
     (df["meaning"] != "") &
     (df["level"] != "") &
