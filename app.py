@@ -341,6 +341,80 @@ def render_naver_talk():
     )
 
 def render_admin_dashboard():
+    st.subheader("📊 관리자 대시보드")
+
+    # ✅ 권한 체크(버튼이 숨겨져 있어도, 강제로 접근할 수 있으니 여기서도 막기)
+    if not is_admin():
+        st.error("접근 권한이 없습니다.")
+        st.session_state.page = "quiz"
+        st.stop()
+
+    # 돌아가기
+    if st.button("← 퀴즈로 돌아가기", use_container_width=True):
+        st.session_state.page = "quiz"
+        st.rerun()
+
+    sb_authed = get_authed_sb()
+    if sb_authed is None:
+        st.warning("토큰(sb_authed)이 없습니다. 로그인 세션 토큰 확인이 필요합니다.")
+        st.stop()
+
+    st.caption("DEBUG: 관리자 조회를 시작합니다…")
+
+    # ✅ 1) 쿼리 실행 + 에러/데이터 강제 표시
+    try:
+        res = (
+            sb_authed.table("quiz_attempts")
+            .select("created_at, user_id, level, pos_mode, quiz_len, score, wrong_count")
+            .order("created_at", desc=True)
+            .limit(200)
+            .execute()
+        )
+
+        rows = len(res.data) if getattr(res, "data", None) else 0
+        st.success(f"DEBUG: quiz_attempts rows = {rows}")
+
+        # 샘플 1개 보여주기(형태 확인)
+        if rows > 0:
+            st.json(res.data[0])
+        else:
+            st.info("DEBUG: 데이터가 0건입니다. (또는 RLS가 전체 조회를 막고 있을 수 있습니다.)")
+
+    except Exception as e:
+        st.error("❌ 관리자 조회 실패 (RLS/권한/테이블명/컬럼명 가능성)")
+        st.exception(e)
+        st.stop()
+
+    # ✅ 2) 표로 출력
+    if rows > 0:
+        df_admin = pd.DataFrame(res.data).copy()
+        df_admin["created_at"] = pd.to_datetime(df_admin["created_at"]).dt.tz_localize(None)
+
+        st.divider()
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("최근 200건", rows)
+        c2.metric("평균 점수", f"{df_admin['score'].mean():.2f}")
+        c3.metric("평균 오답", f"{df_admin['wrong_count'].mean():.2f}")
+
+        st.dataframe(
+            df_admin,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        # (선택) CSV 다운로드
+        csv = df_admin.to_csv(index=False).encode("utf-8-sig")
+        st.download_button("⬇️ CSV 다운로드", csv, file_name="quiz_attempts_admin.csv", use_container_width=True)
+
+    # ✅ 3) RLS 안내(추가 힌트)
+    st.divider()
+    st.markdown("### 🔎 만약 데이터가 0건이라면?")
+    st.write("- Supabase Table Editor에서 quiz_attempts에 실제 데이터가 있는지 확인")
+    st.write("- 데이터가 있는데도 0건이면 → RLS가 관리자 전체 조회를 막고 있을 가능성이 큽니다.")
+
+
+def render_admin_dashboard():
     # ✅ 안전장치: 학생이 URL/세션 꼼수로 접근해도 여기서 차단
     if not is_admin():
         st.error("접근 권한이 없습니다.")
