@@ -11,16 +11,13 @@ from streamlit_cookies_manager import EncryptedCookieManager
 st.set_page_config(page_title="JLPT Quiz", layout="centered")
 
 st.markdown("""
-<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700&display=swap" rel="stylesheet">
 
 <style>
 :root{
-  --jp-serif: "Shippori Mincho","Hiragino Mincho ProN","Yu Mincho",serif;
-  --jp-sans: "Noto Sans JP","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
+  --jp: "M PLUS 1p","Noto Sans JP","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
 }
-/* 문제(프롬프트)는 명조, 보기/버튼은 고딕으로 분리 */
-.prompt-jp { font-family: var(--jp-serif) !important; }
-.choice-jp, div[data-testid="stRadio"] * { font-family: var(--jp-sans) !important; }
+.jp, .jp *{ font-family: var(--jp) !important; line-height:1.7; letter-spacing:.2px; }
 </style>
 
 """, unsafe_allow_html=True)
