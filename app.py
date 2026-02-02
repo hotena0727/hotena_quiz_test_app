@@ -40,6 +40,66 @@ if not cookies.ready():
     st.info("쿠키를 초기화하는 중입니다… 잠시 후 자동으로 다시 시도됩니다.")
     st.stop()
 
+# ✅ Cookies
+cookies = EncryptedCookieManager(...)
+if not cookies.ready():
+    st.info(...)
+    st.stop()
+
+# ✅ [추가 시작] 진행상태 저장/복원 (쿠키)
+import json
+
+PROGRESS_COOKIE_KEY = "quiz_progress_v1"
+
+def save_progress_to_cookie():
+    try:
+        payload = {
+            "quiz_type": st.session_state.get("quiz_type"),
+            "quiz_version": st.session_state.get("quiz_version"),
+            "quiz": st.session_state.get("quiz"),
+            "answers": st.session_state.get("answers"),
+            "submitted": st.session_state.get("submitted"),
+            "wrong_list": st.session_state.get("wrong_list"),
+        }
+        cookies[PROGRESS_COOKIE_KEY] = json.dumps(payload, ensure_ascii=False)
+        cookies.save()
+    except Exception:
+        pass
+
+def load_progress_from_cookie() -> bool:
+    try:
+        raw = cookies.get(PROGRESS_COOKIE_KEY)
+        if not raw:
+            return False
+
+        payload = json.loads(raw)
+
+        # 최소 유효성 체크
+        if not payload.get("quiz") or not payload.get("quiz_type"):
+            return False
+
+        st.session_state.quiz_type = payload.get("quiz_type")
+        st.session_state.quiz_version = int(payload.get("quiz_version", 0) or 0)
+        st.session_state.quiz = payload.get("quiz")
+        st.session_state.answers = payload.get("answers") or [None] * len(st.session_state.quiz)
+        st.session_state.submitted = bool(payload.get("submitted", False))
+        st.session_state.wrong_list = payload.get("wrong_list") or []
+        return True
+    except Exception:
+        return False
+
+def clear_progress_cookie():
+    try:
+        cookies[PROGRESS_COOKIE_KEY] = ""
+        cookies.save()
+    except Exception:
+        pass
+# ✅ [추가 끝]
+
+# ✅ Supabase 연결
+...
+
+
 # ============================================================
 # ✅ Supabase 연결
 # ============================================================
@@ -184,17 +244,19 @@ def get_authed_sb():
     return sb2
 
 def run_db(callable_fn):
-    try:
-        return callable_fn()
-    except Exception as e:
-        if is_jwt_expired_error(e):
-            ok = refresh_session_from_cookie_if_needed(force=True)
-            if ok:
-                st.rerun()
-            clear_auth_everywhere()
-            st.warning("세션이 만료되었습니다. 다시 로그인해 주세요.")
-            st.rerun()
-        raise
+    # rerun 하지 말고, 토큰 갱신 후 "같은 호출을 1회 재시도"로 끝낸다.
+    for attempt in range(2):
+        try:
+            return callable_fn()
+        except Exception as e:
+            if is_jwt_expired_error(e) and attempt == 0:
+                ok = refresh_session_from_cookie_if_needed(force=True)
+                if ok:
+                    continue  # ✅ rerun 대신 재시도
+                clear_auth_everywhere()
+                st.warning("세션이 만료되었습니다. 다시 로그인해 주세요.")
+                st.stop()
+            raise
 
 def to_kst_naive(series_or_value):
     ts = pd.to_datetime(series_or_value, utc=True, errors="coerce")
@@ -534,7 +596,8 @@ def render_naver_talk():
 # ============================================================
 # ✅ 앱 시작: refresh → 로그인 강제 → profile upsert → 출석 체크
 # ============================================================
-refresh_session_from_cookie_if_needed(force=False)
+# ✅ 새 세션이면 session_state에 user/access_token이 없을 수 있으니 강제로 쿠키에서 복원 시도
+refresh_session_from_cookie_if_needed(force=True)
 
 if "user" not in st.session_state:
     st.session_state.user = None
@@ -790,6 +853,7 @@ with colD:
             sb.auth.sign_out()
         except Exception:
             pass
+        clear_progress_cookie()
         clear_auth_everywhere()
         st.rerun()
 
@@ -969,6 +1033,7 @@ def build_quiz(qtype: str) -> list:
                 clear_question_widget_keys()
                 new_quiz = _safe_build_quiz_after_reset(qtype)
                 start_quiz_state(new_quiz, qtype, clear_wrongs=True)
+                save_progress_to_cookie()
                 st.rerun()
 
             # ✅ 오답만 다시 풀기: 오답으로 새 시험 시작 상태로 고정
@@ -979,6 +1044,7 @@ def build_quiz(qtype: str) -> list:
                     clear_question_widget_keys()
                     retry_quiz = build_quiz_from_wrongs(st.session_state.wrong_list, qtype)
                     start_quiz_state(retry_quiz, qtype, clear_wrongs=True)
+                    save_progress_to_cookie()
                     st.rerun()
 
             st.stop()
@@ -1026,7 +1092,13 @@ if "total_counter" not in st.session_state:
     st.session_state.total_counter = {}
 
 if "quiz" not in st.session_state:
-    st.session_state.quiz = build_quiz(st.session_state.quiz_type)
+    restored = load_progress_from_cookie()
+    if not restored:
+        st.session_state.quiz = build_quiz(st.session_state.quiz_type)
+        st.session_state.answers = [None] * len(st.session_state.quiz)
+        st.session_state.submitted = False
+        st.session_state.wrong_list = []
+    save_progress_to_cookie()
 
 # ============================================================
 # ✅ 상단 UI (출제유형/새문제/초기화)
@@ -1059,6 +1131,7 @@ with col1:
         clear_question_widget_keys()
         new_quiz = build_quiz(st.session_state.quiz_type)
         start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
+        save_progress_to_cookie()
         st.rerun()
 
 with col2:
@@ -1066,6 +1139,7 @@ with col2:
         clear_question_widget_keys()
         # 같은 퀴즈 유지, 답안만 초기화
         start_quiz_state(st.session_state.quiz, st.session_state.quiz_type, clear_wrongs=False)
+        save_progress_to_cookie()
         st.rerun()
 
 st.divider()
@@ -1108,6 +1182,7 @@ for idx, q in enumerate(st.session_state.quiz):
         label_visibility="collapsed",
     )
     st.session_state.answers[idx] = choice
+    save_progress_to_cookie() 
     st.divider()
 
 # ============================================================
