@@ -1367,7 +1367,7 @@ if st.session_state.submitted:
             st.session_state.wrong_list = []
             st.session_state.saved_this_attempt = False
             st.session_state.stats_saved_this_attempt = False
-            st.session_state.session_stats_applied_this_attempt = False  # ✅ 추가
+            st.session_state.session_stats_applied_this_attempt = False
             st.session_state.quiz_version += 1
             st.rerun()
 
