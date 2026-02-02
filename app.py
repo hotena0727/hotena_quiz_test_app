@@ -5,6 +5,8 @@ import streamlit as st
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
 
+import base64, json, time
+
 # ============================================================
 # ✅ Streamlit 기본 설정 (최상단)
 # ============================================================
@@ -118,6 +120,27 @@ def is_jwt_expired_error(e: Exception) -> bool:
     msg = str(e).lower()
     return ("jwt expired" in msg) or ("pgrst303" in msg)
 
+def _jwt_exp_unix(token: str):
+    try:
+        parts = token.split(".")
+        if len(parts) < 2:
+            return None
+        payload_b64 = parts[1] + "==="
+        payload_json = base64.urlsafe_b64decode(payload_b64.encode("utf-8"))
+        payload = json.loads(payload_json.decode("utf-8"))
+        exp = payload.get("exp")
+        return int(exp) if exp else None
+    except Exception:
+        return None
+
+def is_token_expiring_soon(token: str, leeway_seconds: int = 90) -> bool:
+    exp = _jwt_exp_unix(token)
+    if not exp:
+        return False
+    now = int(time.time())
+    return (exp - now) <= leeway_seconds
+
+
 def clear_auth_everywhere():
     try:
         cookies["access_token"] = ""
@@ -172,10 +195,17 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
         return False
 
 def get_authed_sb():
+    # 1) 토큰이 없으면 무조건 refresh 시도
     if not st.session_state.get("access_token"):
         refresh_session_from_cookie_if_needed(force=True)
 
     token = st.session_state.get("access_token")
+
+    # 2) 토큰이 있는데 만료 임박이면 선제 refresh
+    if token and is_token_expiring_soon(token, leeway_seconds=90):
+        refresh_session_from_cookie_if_needed(force=True)
+        token = st.session_state.get("access_token")
+
     if not token:
         return None
 
@@ -425,9 +455,14 @@ def auth_box():
                 st.stop()
 
 def require_login():
+    # 세션_state가 날아가도 쿠키로 복구 시도
+    if st.session_state.get("user") is None:
+        refresh_session_from_cookie_if_needed(force=True)
+
     if st.session_state.get("user") is None:
         auth_box()
         st.stop()
+
 
 # ============================================================
 # ✅ 네이버톡 배너 (제출 후만)
