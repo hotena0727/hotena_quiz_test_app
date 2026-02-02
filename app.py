@@ -1222,18 +1222,13 @@ if st.session_state.submitted:
     else:
         if not st.session_state.saved_this_attempt:
             def _save():
-                return save_attempt_to_db(
-                    sb_authed=sb_authed_local,
-                    user_id=user_id,
-                    user_email=user_email,
-                    level=LEVEL,
-                    quiz_type=current_type,
-                    quiz_len=quiz_len,
-                    score=score,
-                    wrong_list=wrong_list,
-                )
-            try:
-                run_db(_save)
+                sbx = get_authed_sb()
+                if sbx is None:
+                    raise RuntimeError("no access token")
+                return save_attempt_to_db(sb_authed=sbx, ...)
+
+            run_db(_save)
+            
                 st.session_state.saved_this_attempt = True
             except Exception as e:
                 st.warning("DB 저장에 실패했습니다. (테이블/컬럼/권한/RLS 정책 확인 필요)")
@@ -1241,15 +1236,18 @@ if st.session_state.submitted:
 
         if not st.session_state.stats_saved_this_attempt:
             def _save_stats():
+                sbx = get_authed_sb()
+                if sbx is None:
+                    raise RuntimeError("no access token")
                 return save_word_stats_via_rpc(
-                    sb_authed=sb_authed_local,
+                    sb_authed=sbx,
                     quiz=st.session_state.quiz,
                     answers=st.session_state.answers,
                     quiz_type=current_type,
                     level=LEVEL,
                 )
-            try:
-                run_db(_save_stats)
+
+run_db(_save_stats)
                 st.session_state.stats_saved_this_attempt = True
             except Exception:
                 st.caption("※ 단어 통계(stats) 저장이 실패했습니다. (RPC/권한/RLS 확인 필요)")
@@ -1257,10 +1255,13 @@ if st.session_state.submitted:
         st.subheader("📌 내 최근 기록")
 
         def _fetch_hist():
-            return fetch_recent_attempts(sb_authed_local, user_id, limit=10)
+            sbx = get_authed_sb()
+            if sbx is None:
+                raise RuntimeError("no access token")
+            return fetch_recent_attempts(sbx, user_id, limit=10)
 
-        try:
-            res = run_db(_fetch_hist)
+        res = run_db(_fetch_hist)
+
             if not res.data:
                 st.info("아직 저장된 기록이 없습니다. 문제를 풀고 제출하면 기록이 쌓여요.")
             else:
