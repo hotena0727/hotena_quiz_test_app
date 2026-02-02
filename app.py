@@ -213,17 +213,21 @@ def get_authed_sb():
     sb2.postgrest.auth(token)
     return sb2
 
-def run_db(callable_fn):
+def run_db(callable_fn, retry_once: bool = True):
     try:
         return callable_fn()
     except Exception as e:
         if is_jwt_expired_error(e):
             ok = refresh_session_from_cookie_if_needed(force=True)
-            if ok:
-                st.rerun()
+
+            # ✅ rerun 대신, 1번만 재시도
+            if ok and retry_once:
+                return run_db(callable_fn, retry_once=False)
+
             clear_auth_everywhere()
             st.warning("세션이 만료되었습니다. 다시 로그인해 주세요.")
             st.rerun()
+
         raise
 
 def to_kst_naive(series_or_value):
@@ -657,14 +661,17 @@ def render_admin_dashboard():
     show_debug = st.toggle("디버그 정보 표시", value=False, key="toggle_admin_debug")
 
     def _fetch():
-        return fetch_all_attempts_admin(sb_authed_local, limit=500)
+    sbx = get_authed_sb()
+    if sbx is None:
+        raise RuntimeError("no access token")
+    return fetch_all_attempts_admin(sbx, limit=500)
 
-    try:
-        res = run_db(_fetch)
-    except Exception as e:
-        st.error("❌ 관리자 조회 실패 (RLS/권한/테이블/컬럼 확인 필요)")
-        st.write(str(e))
-        return
+try:
+    res = run_db(_fetch)
+except Exception as e:
+    st.error("❌ 관리자 조회 실패 (RLS/권한/테이블/컬럼 확인 필요)")
+    st.write(str(e))
+    return
 
     rows = len(res.data) if getattr(res, "data", None) else 0
     if show_debug:
@@ -696,16 +703,19 @@ def render_my_dashboard():
         st.session_state.page = "quiz"
         st.rerun()
 
-    sb_authed_local = get_authed_sb()
-    if sb_authed_local is None:
-        st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
-        return
-
     def _fetch():
-        return fetch_recent_attempts(sb_authed_local, user_id, limit=50)
+        sbx = get_authed_sb()
+        if sbx is None:
+            raise RuntimeError("no access token")
+        return fetch_recent_attempts(sbx, user_id, limit=50)
 
     try:
         res = run_db(_fetch)
+    except Exception as e:
+        st.info("기록을 불러오지 못했습니다.")
+        st.write(str(e))
+        return
+
     except Exception as e:
         st.info("기록을 불러오지 못했습니다.")
         st.write(str(e))
