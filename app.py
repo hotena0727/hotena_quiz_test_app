@@ -661,17 +661,18 @@ def render_admin_dashboard():
     show_debug = st.toggle("디버그 정보 표시", value=False, key="toggle_admin_debug")
 
     def _fetch():
-    sbx = get_authed_sb()
-    if sbx is None:
-        raise RuntimeError("no access token")
-    return fetch_all_attempts_admin(sbx, limit=500)
+        sbx = get_authed_sb()
+        if sbx is None:
+            raise RuntimeError("no access token")
+        return fetch_all_attempts_admin(sbx, limit=500)
 
-try:
-    res = run_db(_fetch)
-except Exception as e:
-    st.error("❌ 관리자 조회 실패 (RLS/권한/테이블/컬럼 확인 필요)")
-    st.write(str(e))
-    return
+    try:
+        res = run_db(_fetch)
+    except Exception as e:
+        st.error("❌ 관리자 조회 실패 (RLS/권한/테이블/컬럼 확인 필요)")
+        st.write(str(e))
+        return
+
 
     rows = len(res.data) if getattr(res, "data", None) else 0
     if show_debug:
