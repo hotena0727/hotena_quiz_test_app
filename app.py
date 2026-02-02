@@ -40,13 +40,9 @@ if not cookies.ready():
     st.info("쿠키를 초기화하는 중입니다… 잠시 후 자동으로 다시 시도됩니다.")
     st.stop()
 
-# ✅ Cookies
-cookies = EncryptedCookieManager(...)
-if not cookies.ready():
-    st.info(...)
-    st.stop()
-
-# ✅ [추가 시작] 진행상태 저장/복원 (쿠키)
+# ============================================================
+# ✅ 진행상태 저장/복원 (쿠키)
+# ============================================================
 import json
 
 PROGRESS_COOKIE_KEY = "quiz_progress_v1"
@@ -74,7 +70,6 @@ def load_progress_from_cookie() -> bool:
 
         payload = json.loads(raw)
 
-        # 최소 유효성 체크
         if not payload.get("quiz") or not payload.get("quiz_type"):
             return False
 
@@ -94,6 +89,7 @@ def clear_progress_cookie():
         cookies.save()
     except Exception:
         pass
+
 # ✅ [추가 끝]
 
 # ✅ Supabase 연결
