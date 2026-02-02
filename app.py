@@ -1013,6 +1013,8 @@ def build_quiz(qtype: str) -> list:
 # ============================================================
 if "quiz_type" not in st.session_state:
     st.session_state.quiz_type = "reading"
+if st.session_state.quiz_type not in ["reading", "meaning", "kr2jp"]:
+    st.session_state.quiz_type = "reading"
 if "quiz_version" not in st.session_state:
     st.session_state.quiz_version = 0
 if "submitted" not in st.session_state:
@@ -1044,6 +1046,8 @@ if "quiz" not in st.session_state:
 # ============================================================
 # ✅ 상단 UI (출제유형/새문제/초기화)
 # ============================================================
+QUIZ_TYPES = ["reading", "meaning", "kr2jp"]
+
 selected = st.radio(
     "출제 유형",
     options=["reading", "meaning", "kr2jp"],
