@@ -13,6 +13,17 @@ st.set_page_config(page_title="JLPT Quiz", layout="centered")
 st.markdown(
     """
 <style>
+
+/* ✅ big CTA 버튼 스타일 (PC에서도 큼직하게) */
+div.stButton > button {
+  width: 100% !important;     /* 혹시 모를 폭 강제 */
+  padding: 14px 16px !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  border-radius: 14px !important;
+}
+
+
 @import url('https://fonts.googleapis.com/css2?family=Kosugi+Maru&display=swap');
 :root{ --jp-rounded: "Kosugi Maru","Hiragino Sans","Yu Gothic","Meiryo",sans-serif; }
 .jp, .jp *{ font-family: var(--jp-rounded) !important; line-height:1.7; letter-spacing:.2px; }
