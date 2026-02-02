@@ -1222,18 +1222,27 @@ if st.session_state.submitted:
         st.warning("DB 저장/조회용 토큰이 없습니다. 다시 로그인해 주세요.")
     else:
             if not st.session_state.saved_this_attempt:
-    def _save():
-        sbx = get_authed_sb()
-        if sbx is None:
-            raise RuntimeError("no access token")
-        return save_attempt_to_db(sb_authed=sbx, ...)
+                def _save():
+                    sbx = get_authed_sb()
+                    if sbx is None:
+                        raise RuntimeError("no access token")
+                    return save_attempt_to_db(
+                        sb_authed=sbx,
+                        user_id=user_id,
+                        user_email=user_email,
+                        level=LEVEL,
+                        quiz_type=current_type,
+                        quiz_len=quiz_len,
+                        score=score,
+                        wrong_list=wrong_list,
+                    )
 
-    run_db(_save)
-            
-                st.session_state.saved_this_attempt = True
-            except Exception as e:
-                st.warning("DB 저장에 실패했습니다. (테이블/컬럼/권한/RLS 정책 확인 필요)")
-                st.write(str(e))
+                try:
+                    run_db(_save)
+                    st.session_state.saved_this_attempt = True
+                except Exception as e:
+                    st.warning("DB 저장에 실패했습니다. (테이블/컬럼/권한/RLS 정책 확인 필요)")
+                    st.write(str(e))
 
         if not st.session_state.stats_saved_this_attempt:
             def _save_stats():
