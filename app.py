@@ -11,18 +11,14 @@ from streamlit_cookies_manager import EncryptedCookieManager
 st.set_page_config(page_title="JLPT Quiz", layout="centered")
 
 st.markdown("""
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&display=swap" rel="stylesheet">
 
 <style>
 :root{
-  --jp: "Noto Sans JP","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
+  --jp: "BIZ UDGothic","Noto Sans JP","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
 }
-.jp, .jp *{ font-family: var(--jp) !important; line-height:1.7; letter-spacing:.2px; }
-div[data-testid="stRadio"] *, div[data-baseweb="radio"] *, label[data-baseweb="radio"] *{
-  font-family: var(--jp) !important;
-}
+.jp, .jp *{ font-family: var(--jp) !important; line-height:1.7; letter-spacing:.15px; }
+</style>
 
 /* 질문/보기 전부 */
 .jp, .jp *{ font-family: var(--jp-rounded) !important; line-height:1.7; letter-spacing:.2px; }
