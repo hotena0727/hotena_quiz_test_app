@@ -23,12 +23,14 @@ div.stButton > button {
   border-radius: 14px !important;
 }
 
-@import url('https://fonts.googleapis.com/css2?family=Kosugi+Maru&display=swap');
-:root{ --jp-rounded: "Kosugi Maru","Hiragino Sans","Yu Gothic","Meiryo",sans-serif; }
+@import url('https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=Noto+Sans+JP:wght@400;500;700;800&display=swap');
+:root{ --jp-rounded: "Noto Sans JP","Kosugi Maru","Hiragino Sans","Yu Gothic","Meiryo",sans-serif; }
 .jp, .jp *{ font-family: var(--jp-rounded) !important; line-height:1.7; letter-spacing:.2px; }
 
-/* ✅ 라디오(보기) 텍스트도 일본어 폰트로 강제 */
-div[data-testid="stRadio"] * {
+/* ✅ 라디오(보기) 텍스트까지 일본어 폰트 강제 */
+div[data-testid="stRadio"] label, 
+div[data-testid="stRadio"] span,
+div[data-testid="stRadio"] p {
   font-family: var(--jp-rounded) !important;
 }
 
