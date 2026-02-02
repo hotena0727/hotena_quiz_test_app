@@ -28,7 +28,6 @@ label[data-baseweb="radio"] * {
 """, unsafe_allow_html=True)
 
 st.title("い형용사 퀴즈")
-st.code("DEBUG: app reached title")
 
 # ============================================================
 # ✅ Cookies
