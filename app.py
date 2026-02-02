@@ -925,30 +925,56 @@ def build_quiz(qtype: str) -> list:
             (~base_pool["jp_word"].isin(mastered)) & (~base_pool["reading"].isin(mastered))
         ].copy()
 
+     # ✅ 남은 문제가 부족한 경우 처리
     if len(base_pool) < N:
-        st.warning(f"남은 문제가 부족합니다. (남은 {len(base_pool)}개)  — '새 문제'를 위해 제외 조건을 완화하거나 초기화가 필요해요.")
-        # 부족하면 남은 만큼만 출제(혹은 stop 처리도 가능)
-        take_n = min(N, len(base_pool))
-        if take_n <= 0:
+        # (A) 남은 0개 = 전부 마스터
+        if len(base_pool) == 0:
+            st.success("벽합니다. 드디어 모두 정복했어요 ✅")
+            st.info("복습/재도전을 원하시면 상단의 [맞힌 단어 제외 초기화] 후 **[새 문제]**를 눌러주세요.")
+
+            # ✅ 여기서 바로 초기화(원클릭) UI
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("🧹 여기서 바로 초기화(원클릭)", use_container_width=True, key="btn_inline_reset_mastered"):
+                    st.session_state.mastered_words = set()
+
+                    # 새 문제까지 한 번에 가고 싶으면 아래 두 줄까지 유지
+                    st.session_state.quiz = build_quiz(qtype)
+                    st.session_state.submitted = False
+                    st.session_state.wrong_list = []
+                    st.session_state.saved_this_attempt = False
+                    st.session_state.stats_saved_this_attempt = False
+                    st.session_state.session_stats_applied_this_attempt = False
+                    st.session_state.quiz_version += 1
+
+                    st.rerun()
+
+            with c2:
+                if st.button("❌ 오답만 다시 풀기", use_container_width=True, key="btn_inline_retry_wrongs"):
+                    # 오답이 있을 때만 의미 있으니, 없으면 안내
+                    if not st.session_state.get("wrong_list"):
+                        st.warning("현재 오답 노트가 비어 있어요. 🙂")
+                    else:
+                        st.session_state.quiz = build_quiz_from_wrongs(st.session_state.wrong_list, qtype)
+                        st.session_state.submitted = False
+                        st.session_state.wrong_list = []
+                        st.session_state.saved_this_attempt = False
+                        st.session_state.stats_saved_this_attempt = False
+                        st.session_state.session_stats_applied_this_attempt = False
+                        st.session_state.quiz_version += 1
+                        st.rerun()
+
             st.stop()
+
+        # (B) 0개는 아니지만 N개 미만이면 남은 만큼만 출제
+        st.info(f"남은 문제가 {len(base_pool)}개라서, 남은 만큼만 출제합니다 🙂")
+        take_n = min(N, len(base_pool))
         sampled = base_pool.sample(n=take_n).reset_index(drop=True)
+
     else:
         sampled = base_pool.sample(n=N).reset_index(drop=True)
 
     return [make_question(sampled.iloc[i], qtype, pool_i, pool) for i in range(len(sampled))]
-
-def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
-    wrong_words = list({w["단어"] for w in wrong_list})
-    retry_df = pool_i[
-        pool_i["jp_word"].isin(wrong_words) | pool_i["reading"].isin(wrong_words)
-    ].copy()
-
-    if len(retry_df) == 0:
-        st.error("오답 단어를 풀에서 찾지 못했습니다. (jp_word/reading 매칭 확인 필요)")
-        st.stop()
-
-    retry_df = retry_df.sample(frac=1).reset_index(drop=True)
-    return [make_question(retry_df.iloc[i], qtype, pool_i, pool) for i in range(len(retry_df))]
 
 # ============================================================
 # ✅ 세션 초기화
