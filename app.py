@@ -993,13 +993,16 @@ def build_quiz(qtype: str) -> list:
             (~base_pool["jp_word"].isin(mastered)) & (~base_pool["reading"].isin(mastered))
         ].copy()
 
-    if len(base_pool) < N:
-        if len(base_pool) == 0:
-            st.success("완벽합니다. 드디어 모두 정복했어요 ✅")
-            st.info("복습/재도전을 원하시면 상단의 [맞힌 단어 제외 초기화] 후 **[새 문제]**를 눌러주세요.")
+if len(base_pool) < N:
+    if len(base_pool) == 0:
+        st.success("완벽합니다. 드디어 모두 정복했어요 ✅")
+        st.info("복습/재도전을 원하시면 상단의 [맞힌 단어 제외 초기화] 후 **[새 문제]**를 눌러주세요.")
 
-            # ✅ PC에서 버튼 작게 보이는 것 방지: 세로로 큼직하게 2개
-            if st.button("🧹 여기서 바로 초기화(원클릭)", use_container_width=True, key="btn_inline_reset_mastered"):
+        # ✅ PC에서 버튼 작게 보이는 것 방지: 가로 2개 버튼
+        cA, cB = st.columns(2)
+
+        with cA:
+            if st.button("🧹 현재 유형만 초기화", use_container_width=True, key="btn_inline_reset_current"):
                 st.session_state.mastered_words[qtype] = set()
                 st.session_state.quiz = build_quiz(qtype)
                 st.session_state.submitted = False
@@ -1010,28 +1013,43 @@ def build_quiz(qtype: str) -> list:
                 st.session_state.quiz_version += 1
                 st.rerun()
 
-            if st.button("❌ 오답만 다시 풀기", use_container_width=True, key="btn_inline_retry_wrongs"):
-                if not st.session_state.get("wrong_list"):
-                    st.warning("현재 오답 노트가 비어 있어요. 🙂")
-                else:
-                    st.session_state.quiz = build_quiz_from_wrongs(st.session_state.wrong_list, qtype)
-                    st.session_state.submitted = False
-                    st.session_state.wrong_list = []
-                    st.session_state.saved_this_attempt = False
-                    st.session_state.stats_saved_this_attempt = False
-                    st.session_state.session_stats_applied_this_attempt = False
-                    st.session_state.quiz_version += 1
-                    st.rerun()
+        with cB:
+            if st.button("🧹 전체 유형 초기화", use_container_width=True, key="btn_inline_reset_all"):
+                st.session_state.mastered_words = {"reading": set(), "meaning": set(), "kr2jp": set()}
+                st.session_state.quiz = build_quiz(qtype)
+                st.session_state.submitted = False
+                st.session_state.wrong_list = []
+                st.session_state.saved_this_attempt = False
+                st.session_state.stats_saved_this_attempt = False
+                st.session_state.session_stats_applied_this_attempt = False
+                st.session_state.quiz_version += 1
+                st.rerun()
 
-            st.stop()
+        # ✅ 오답만 다시 풀기 버튼은 columns 밖(전체 폭)으로 두는 게 안정적
+        if st.button("❌ 오답만 다시 풀기", use_container_width=True, key="btn_inline_retry_wrongs"):
+            if not st.session_state.get("wrong_list"):
+                st.warning("현재 오답 노트가 비어 있어요. 🙂")
+            else:
+                st.session_state.quiz = build_quiz_from_wrongs(st.session_state.wrong_list, qtype)
+                st.session_state.submitted = False
+                st.session_state.wrong_list = []
+                st.session_state.saved_this_attempt = False
+                st.session_state.stats_saved_this_attempt = False
+                st.session_state.session_stats_applied_this_attempt = False
+                st.session_state.quiz_version += 1
+                st.rerun()
 
-        st.info(f"남은 문제가 {len(base_pool)}개라서, 남은 만큼만 출제합니다 🙂")
-        take_n = min(N, len(base_pool))
-        sampled = base_pool.sample(n=take_n).reset_index(drop=True)
-    else:
-        sampled = base_pool.sample(n=N).reset_index(drop=True)
+        st.stop()
 
-    return [make_question(sampled.iloc[i], qtype, pool_i, pool) for i in range(len(sampled))]
+    # len(base_pool)이 1~9개인 경우
+    st.info(f"남은 문제가 {len(base_pool)}개라서, 남은 만큼만 출제합니다 🙂")
+    take_n = min(N, len(base_pool))
+    sampled = base_pool.sample(n=take_n).reset_index(drop=True)
+
+else:
+    sampled = base_pool.sample(n=N).reset_index(drop=True)
+
+return [make_question(sampled.iloc[i], qtype, pool_i, pool) for i in range(len(sampled))]
 
 # ============================================================
 # ✅ 세션 초기화
@@ -1185,10 +1203,16 @@ if st.session_state.submitted:
         word_key = (str(q.get("jp_word", "")).strip() or str(q.get("reading", "")).strip())
 
         if picked == correct:
-            score += 1
-            if word_key:
-                # ✅ (핵심 FIX) 현재 유형에만 마스터 등록
-                st.session_state.mastered_words[current_type].add(word_key)
+          score += 1
+
+          jp_key = str(q.get("jp_word", "")).strip()
+          rd_key = str(q.get("reading", "")).strip()
+
+          # ✅ 타입/표기 흔들림 방지: 둘 다 마스터 처리
+          if jp_key:
+              st.session_state.mastered_words[current_type].add(jp_key)
+          if rd_key:
+              st.session_state.mastered_words[current_type].add(rd_key)
         else:
             word_display = (str(q.get("jp_word", "")).strip() or str(q.get("reading", "")).strip())
             wrong_list.append(
