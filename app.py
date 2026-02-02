@@ -1080,8 +1080,13 @@ if st.session_state.submitted:
         picked = st.session_state.answers[idx]
         correct = q["correct_text"]
 
+        # ✅ 이 키 방식이 build_quiz()의 제외 로직과 동일해야 함
+        word_key = (str(q.get("jp_word", "")).strip() or str(q.get("reading", "")).strip())
+
         if picked == correct:
             score += 1
+            if word_key:
+                st.session_state.mastered_words.add(word_key)  # ✅ 추가
         else:
             word_display = (str(q.get("jp_word", "")).strip() or str(q.get("reading", "")).strip())
             wrong_list.append(
