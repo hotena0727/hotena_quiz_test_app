@@ -1302,7 +1302,7 @@ if st.session_state.submitted:
 
   <div class="ans-row"><div class="ans-k">내 답</div><div>{picked}</div></div>
   <div class="ans-row"><div class="ans-k">정답</div><div><b>{correct}</b></div></div>
-  <div class="ans-row"><div class="ans-k">읽기</div><div>{reading}</div></div>
+  <div class="ans-row"><div class="ans-k">발음</div><div>{reading}</div></div>
   <div class="ans-row"><div class="ans-k">뜻</div><div>{meaning}</div></div>
 </div>
 """,
