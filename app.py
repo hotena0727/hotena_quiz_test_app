@@ -13,39 +13,36 @@ st.set_page_config(page_title="JLPT Quiz", layout="centered")
 st.markdown("""
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&family=Kosugi+Maru&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&display=swap" rel="stylesheet">
 
 <style>
 :root{
-  /* ✅ 부드러운 동글 폰트 우선 */
-  --jp-ui: "Zen Maru Gothic","Kosugi Maru","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
+  --jp-sans: "BIZ UDGothic","Noto Sans JP","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
 }
 
-/* 전체 일본어 영역 */
+/* 기본도 고딕 */
 .jp, .jp *{
-  font-family: var(--jp-ui) !important;
+  font-family: var(--jp-sans) !important;
   line-height: 1.72;
-  letter-spacing: .18px;
+  letter-spacing: .15px;
 }
 
-/* 문제 문장도 동일 폰트로 통일(깔끔) */
+/* 문제 문장도 고딕(사실상 동일하지만 유지해둠) */
 .jp-prompt, .jp-prompt *{
-  font-family: var(--jp-ui) !important;
+  font-family: var(--jp-sans) !important;
   line-height: 1.72;
-  letter-spacing: .18px;
+  letter-spacing: .15px;
 }
 
-/* 라디오(보기) 강제 */
 div[data-testid="stRadio"] *,
 div[data-baseweb="radio"] *,
 label[data-baseweb="radio"] *,
 div[role="radiogroup"] *{
-  font-family: var(--jp-ui) !important;
-  letter-spacing: .18px;
+  font-family: var(--jp-sans) !important;
+  letter-spacing: .15px;
   line-height: 1.65;
 }
 
-/* 보기 길 때 줄바꿈 */
 label[data-baseweb="radio"]{
   white-space: normal !important;
 }
