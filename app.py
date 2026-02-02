@@ -65,12 +65,12 @@ KST_TZ = "Asia/Seoul"
 quiz_label_map = {
     "reading": "발음",
     "meaning": "뜻",
-    "kr2jp": "한→일",
+    "kr2jp": "한→일",   # ✅ 추가
 }
 quiz_label_for_table = {
     "reading": "발음",
     "meaning": "뜻",
-    "kr2jp": "한→일",
+    "kr2jp": "한→일",   # ✅ 추가
 }
 
 QUIZ_TYPES = ["reading", "meaning", "kr2jp"]
@@ -88,15 +88,6 @@ def ensure_mastered_words_shape():
     else:
         for k in QUIZ_TYPES:
             st.session_state.mastered_words.setdefault(k, set())
-
-def reset_mastered_current_type():
-    ensure_mastered_words_shape()
-    cur = st.session_state.get("quiz_type", "reading")
-    st.session_state.mastered_words[cur] = set()
-
-def reset_mastered_all_types():
-    # ✅ 전체 유형 초기화(핵심)
-    st.session_state.mastered_words = {"reading": set(), "meaning": set(), "kr2jp": set()}
 
 # ============================================================
 # ✅ 유틸: JWT 만료 감지 + 세션 갱신 + DB 호출 래퍼
@@ -126,7 +117,7 @@ def clear_auth_everywhere():
         "history", "wrong_counter", "total_counter",
         "attendance_checked", "streak_count", "did_attend_today",
         "is_admin_cached",
-        "session_stats_applied_this_attempt",
+        "session_stats_applied_this_attempt",  # ✅ 추가
     ]:
         st.session_state.pop(k, None)
 
@@ -205,9 +196,12 @@ def to_kst_naive(series_or_value):
     return ts.dt.tz_convert(KST_TZ).dt.tz_localize(None)
 
 # ============================================================
-# ✅ DB 함수
+# ✅ DB 함수 (정의가 먼저! / 호출은 아래)
 # ============================================================
 def ensure_profile(sb_authed, user):
+    """
+    profiles upsert (없으면 생성)
+    """
     try:
         sb_authed.table("profiles").upsert(
             {"id": user.id, "email": getattr(user, "email", None)},
@@ -266,6 +260,9 @@ def fetch_all_attempts_admin(sb_authed, limit=500):
     )
 
 def fetch_is_admin_from_db(sb_authed, user_id):
+    """
+    ✅ DB profiles.is_admin 기준으로 관리자 판단
+    """
     try:
         res = sb_authed.table("profiles").select("is_admin").eq("id", user_id).single().execute()
         if res and res.data and "is_admin" in res.data:
@@ -300,7 +297,14 @@ def save_word_stats_via_rpc(sb_authed, quiz: list[dict], answers: list, quiz_typ
 # ============================================================
 # ✅ Admin 설정 (DB ONLY)
 # ============================================================
+def get_admin_email_set() -> set[str]:
+    raw = st.secrets.get("ADMIN_EMAILS", "")
+    return {e.strip().lower() for e in raw.split(",") if e.strip()}
+
 def is_admin() -> bool:
+    """
+    ✅ 관리자 판정: DB profiles.is_admin ONLY
+    """
     cached = st.session_state.get("is_admin_cached")
     if cached is not None:
         return bool(cached)
@@ -774,6 +778,25 @@ def render_my_dashboard():
         st.caption(f"정답률 {pct:.0f}%")
         st.write("")
 
+    if is_admin():
+        with st.expander("표로 보기"):
+            show = hist.rename(
+                columns={
+                    "created_at": "일시",
+                    "level": "레벨",
+                    "pos_mode": "quiz_type(원값)",
+                    "quiz_len": "문항",
+                    "score": "점수",
+                    "wrong_count": "오답",
+                }
+            )
+            show["일시"] = pd.to_datetime(show["일시"]).dt.strftime("%Y-%m-%d %H:%M")
+            st.dataframe(
+                show[["일시", "레벨", "유형", "문항", "점수", "오답", "quiz_type(원값)"]],
+                use_container_width=True,
+                hide_index=True,
+            )
+
 # ============================================================
 # ✅ 상단 헤더 (페이지/버튼)
 # ============================================================
@@ -806,7 +829,7 @@ with colD:
         st.rerun()
 
 # ============================================================
-# ✅ 라우팅
+# ✅ 라우팅 (admin은 2중 잠금)
 # ============================================================
 if st.session_state.page == "admin":
     if not is_admin():
@@ -833,6 +856,7 @@ READ_KW = dict(
 )
 
 df = pd.read_csv(CSV_PATH, **READ_KW)
+
 if len(df.columns) == 1 and "\t" in df.columns[0]:
     df = pd.read_csv(CSV_PATH, sep="\t", **READ_KW)
 
@@ -858,7 +882,10 @@ df = df[
 pool = df[df["level"] == LEVEL].copy()
 pool_i = pool[pool["pos"] == "i_adj"].copy()
 
-pool_i_reading = pool_i[pool_i["jp_word"].notna() & (pool_i["jp_word"].astype(str).str.strip() != "")].copy()
+pool_i_reading = pool_i[
+    pool_i["jp_word"].notna() & (pool_i["jp_word"].astype(str).str.strip() != "")
+].copy()
+
 pool_i_meaning = pool_i.copy()
 
 if len(pool_i) < N:
@@ -936,7 +963,9 @@ def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
         st.warning("현재 오답 노트가 비어 있어요. 🙂")
         return []
 
-    retry_df = pool_i[(pool_i["jp_word"].isin(wrong_words)) | (pool_i["reading"].isin(wrong_words))].copy()
+    retry_df = pool_i[
+        (pool_i["jp_word"].isin(wrong_words)) | (pool_i["reading"].isin(wrong_words))
+    ].copy()
 
     if len(retry_df) == 0:
         st.error("오답 단어를 풀에서 찾지 못했습니다. (jp_word/reading 매칭 확인)")
@@ -955,6 +984,7 @@ def build_quiz(qtype: str) -> list:
     else:
         base_pool = pool_i_meaning
 
+    # ✅ 현재 유형의 mastered만 제외
     ensure_mastered_words_shape()
     mastered = st.session_state.mastered_words.get(qtype, set())
 
@@ -966,13 +996,13 @@ def build_quiz(qtype: str) -> list:
     if len(base_pool) < N:
         if len(base_pool) == 0:
             st.success("완벽합니다. 드디어 모두 정복했어요 ✅")
-            st.info("복습/재도전을 원하시면 아래 버튼으로 초기화 후 **[새 문제]**를 눌러주세요.")
+            st.info("복습/재도전을 원하시면 상단의 [맞힌 단어 제외 초기화] 후 **[새 문제]**를 눌러주세요.")
 
-            # ✅ 여기서도 현재/전체 초기화 둘 다 제공 (막힘 방지)
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("🧹 현재 유형만 초기화", use_container_width=True, key="btn_inline_reset_mastered_current"):
-                    reset_mastered_current_type()
+            cA, cB = st.columns(2)
+
+            with cA:
+                if st.button("🧹 현재 유형만 초기화", use_container_width=True, key="btn_inline_reset_current"):
+                    st.session_state.mastered_words[qtype] = set()
                     st.session_state.quiz = build_quiz(qtype)
                     st.session_state.submitted = False
                     st.session_state.wrong_list = []
@@ -982,9 +1012,9 @@ def build_quiz(qtype: str) -> list:
                     st.session_state.quiz_version += 1
                     st.rerun()
 
-            with c2:
-                if st.button("🧹 전체 유형 초기화", use_container_width=True, key="btn_inline_reset_mastered_all"):
-                    reset_mastered_all_types()
+            with cB:
+                if st.button("🧹 전체 유형 초기화", use_container_width=True, key="btn_inline_reset_all"):
+                    st.session_state.mastered_words = {"reading": set(), "meaning": set(), "kr2jp": set()}
                     st.session_state.quiz = build_quiz(qtype)
                     st.session_state.submitted = False
                     st.session_state.wrong_list = []
@@ -1012,6 +1042,7 @@ def build_quiz(qtype: str) -> list:
         st.info(f"남은 문제가 {len(base_pool)}개라서, 남은 만큼만 출제합니다 🙂")
         take_n = min(N, len(base_pool))
         sampled = base_pool.sample(n=take_n).reset_index(drop=True)
+
     else:
         sampled = base_pool.sample(n=N).reset_index(drop=True)
 
@@ -1036,11 +1067,14 @@ if "saved_this_attempt" not in st.session_state:
 if "stats_saved_this_attempt" not in st.session_state:
     st.session_state.stats_saved_this_attempt = False
 
+# ✅ (핵심 FIX) mastered_words는 dict로 유지
 ensure_mastered_words_shape()
 
+# ✅ (중요) 제출 후 누적 업데이트가 리런 때 중복되지 않도록 1회 플래그
 if "session_stats_applied_this_attempt" not in st.session_state:
     st.session_state.session_stats_applied_this_attempt = False
 
+# 누적(세션) 통계
 if "history" not in st.session_state:
     st.session_state.history = []
 if "wrong_counter" not in st.session_state:
@@ -1080,6 +1114,7 @@ st.caption(f"현재 선택: **{quiz_label_map[st.session_state.quiz_type]}**")
 st.divider()
 
 col1, col2 = st.columns(2)
+
 with col1:
     if st.button("🔄 새 문제(랜덤 10문항)", use_container_width=True, key="btn_new_quiz"):
         st.session_state.quiz = build_quiz(st.session_state.quiz_type)
@@ -1101,21 +1136,13 @@ with col2:
 st.divider()
 
 # ============================================================
-# ✅ (보완) 맞힌 단어 제외 초기화: 현재/전체 2개를 나란히 제공
+# ✅ (핵심 FIX) 맞힌 단어 제외 초기화: 현재 유형만 초기화
 # ============================================================
-r1, r2 = st.columns(2)
-
-with r1:
-    if st.button("✅ 맞힌 단어 제외 초기화(현재 유형)", use_container_width=True, key="btn_reset_mastered_current_type"):
-        reset_mastered_current_type()
-        st.success(f"초기화 완료 (유형: {quiz_label_map[st.session_state.quiz_type]})")
-        st.rerun()
-
-with r2:
-    if st.button("✅ 맞힌 단어 제외 초기화(전체 유형)", use_container_width=True, key="btn_reset_mastered_all_types"):
-        reset_mastered_all_types()
-        st.success("초기화 완료 (전체 유형)")
-        st.rerun()
+if st.button("✅ 맞힌 단어 제외 초기화", use_container_width=True, key="btn_reset_mastered_current_type"):
+    ensure_mastered_words_shape()
+    st.session_state.mastered_words[st.session_state.quiz_type] = set()
+    st.success(f"초기화 완료 (유형: {quiz_label_map[st.session_state.quiz_type]})")
+    st.rerun()
 
 # ============================================================
 # ✅ answers 길이 자동 맞춤
@@ -1169,12 +1196,20 @@ if st.session_state.submitted:
         picked = st.session_state.answers[idx]
         correct = q["correct_text"]
 
+        # ✅ 이 키 방식이 build_quiz()의 제외 로직과 동일해야 함
         word_key = (str(q.get("jp_word", "")).strip() or str(q.get("reading", "")).strip())
 
         if picked == correct:
-            score += 1
-            if word_key:
-                st.session_state.mastered_words[current_type].add(word_key)
+          score += 1
+
+          jp_key = str(q.get("jp_word", "")).strip()
+          rd_key = str(q.get("reading", "")).strip()
+
+          # ✅ 타입/표기 흔들림 방지: 둘 다 마스터 처리
+          if jp_key:
+              st.session_state.mastered_words[current_type].add(jp_key)
+          if rd_key:
+              st.session_state.mastered_words[current_type].add(rd_key)
         else:
             word_display = (str(q.get("jp_word", "")).strip() or str(q.get("reading", "")).strip())
             wrong_list.append(
