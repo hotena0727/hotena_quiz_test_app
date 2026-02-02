@@ -11,26 +11,18 @@ from streamlit_cookies_manager import EncryptedCookieManager
 st.set_page_config(page_title="JLPT Quiz", layout="centered")
 
 st.markdown("""
-<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600;700&display=swap" rel="stylesheet">
 
 <style>
 :root{
-  --jp: "Zen Kaku Gothic New","Noto Sans JP","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
+  --jp-serif: "Shippori Mincho","Hiragino Mincho ProN","Yu Mincho",serif;
+  --jp-sans: "Noto Sans JP","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
 }
-.jp, .jp *{ font-family: var(--jp) !important; line-height:1.75; letter-spacing:.2px; }
-
-
-/* 질문/보기 전부 */
-.jp, .jp *{ font-family: var(--jp-rounded) !important; line-height:1.7; letter-spacing:.2px; }
-
-/* 라디오(보기) 강제 */
-div[data-testid="stRadio"] * ,
-div[data-baseweb="radio"] * ,
-label[data-baseweb="radio"] * {
-  font-family: var(--jp-rounded) !important;
-  letter-spacing:.2px;
-}
+/* 문제(프롬프트)는 명조, 보기/버튼은 고딕으로 분리 */
+.prompt-jp { font-family: var(--jp-serif) !important; }
+.choice-jp, div[data-testid="stRadio"] * { font-family: var(--jp-sans) !important; }
 </style>
+
 """, unsafe_allow_html=True)
 
 # ============================================================
