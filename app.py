@@ -41,7 +41,7 @@ div[data-baseweb="radio"] *,
 label[data-baseweb="radio"] *,
 div[role="radiogroup"] *{
   font-family: var(--jp-sans) !important;
-  font-weight: 350 !important;
+  font-weight: 370 !important;
   letter-spacing: .15px;
   line-height: 1.65;
 }
