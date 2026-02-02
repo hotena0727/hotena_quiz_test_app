@@ -21,7 +21,7 @@ st.markdown("""
   --jp-sans: "BIZ UDGothic","Noto Sans JP","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
 
   /* 문제(프롬프트) 문장: 살짝 품격 있는 명조 */
-  --jp-serif: "Shippori Mincho","Hiragino Mincho ProN","Yu Mincho",serif;
+  --jp-serif: "BIZ UDGothic","Noto Sans JP","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
 }
 
 /* 기본은 고딕 */
