@@ -910,9 +910,31 @@ def make_question(row: pd.Series, qtype: str, base_pool_i: pd.DataFrame, distrac
         "qtype": qtype,
     }
 
+if st.button("✅ 맞힌 단어 제외 초기화", use_container_width=True):
+    st.session_state.mastered_words = set()
+    st.success("초기화 완료")
+    st.rerun()
+
 def build_quiz(qtype: str) -> list:
     base_pool = pool_i_reading if qtype == "reading" else pool_i_meaning
-    sampled = base_pool.sample(n=N).reset_index(drop=True)
+
+    # ✅ 맞힌 단어 제외 (jp_word/reading 둘 다로 매칭)
+    mastered = st.session_state.get("mastered_words", set())
+    if mastered:
+        base_pool = base_pool[
+            (~base_pool["jp_word"].isin(mastered)) & (~base_pool["reading"].isin(mastered))
+        ].copy()
+
+    if len(base_pool) < N:
+        st.warning(f"남은 문제가 부족합니다. (남은 {len(base_pool)}개)  — '새 문제'를 위해 제외 조건을 완화하거나 초기화가 필요해요.")
+        # 부족하면 남은 만큼만 출제(혹은 stop 처리도 가능)
+        take_n = min(N, len(base_pool))
+        if take_n <= 0:
+            st.stop()
+        sampled = base_pool.sample(n=take_n).reset_index(drop=True)
+    else:
+        sampled = base_pool.sample(n=N).reset_index(drop=True)
+
     return [make_question(sampled.iloc[i], qtype, pool_i, pool) for i in range(len(sampled))]
 
 def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
@@ -943,6 +965,8 @@ if "saved_this_attempt" not in st.session_state:
     st.session_state.saved_this_attempt = False
 if "stats_saved_this_attempt" not in st.session_state:
     st.session_state.stats_saved_this_attempt = False
+if "mastered_words" not in st.session_state:
+    st.session_state.mastered_words = set()    
 
 # ✅ (중요) 제출 후 누적 업데이트가 리런 때 중복되지 않도록 1회 플래그
 if "session_stats_applied_this_attempt" not in st.session_state:
