@@ -1115,6 +1115,7 @@ if selected != st.session_state.quiz_type:
     clear_question_widget_keys()
     new_quiz = build_quiz(selected)
     start_quiz_state(new_quiz, selected, clear_wrongs=True)
+    save_progress_to_cookie() 
     st.rerun()
 
 st.caption(f"현재 선택: **{quiz_label_map[st.session_state.quiz_type]}**")
@@ -1410,6 +1411,7 @@ if st.session_state.submitted:
             clear_question_widget_keys()
             retry_quiz = build_quiz_from_wrongs(st.session_state.wrong_list, current_type)
             start_quiz_state(retry_quiz, current_type, clear_wrongs=True)
+            save_progress_to_cookie()
             st.rerun()
 
     st.divider()
