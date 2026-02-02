@@ -1048,12 +1048,26 @@ if "quiz" not in st.session_state:
 # ============================================================
 QUIZ_TYPES = ["reading", "meaning", "kr2jp"]
 
+quiz_label_map = {
+    "reading": "발음",
+    "meaning": "뜻",
+    "kr2jp": "한→일",
+}
+
+# 세션 보정 (예전 값/오타 값 들어와도 안전)
+if "quiz_type" not in st.session_state:
+    st.session_state.quiz_type = "reading"
+if st.session_state.quiz_type not in QUIZ_TYPES:
+    st.session_state.quiz_type = "reading"
+
+current_index = QUIZ_TYPES.index(st.session_state.quiz_type)
+
 selected = st.radio(
     "출제 유형",
-    options=["reading", "meaning", "kr2jp"],
-    format_func=lambda x: quiz_label_map[x],
+    options=QUIZ_TYPES,
+    format_func=lambda x: quiz_label_map.get(x, x),
     horizontal=True,
-    index=["reading", "meaning"].index(st.session_state.quiz_type),
+    index=current_index,
     key="radio_quiz_type",
 )
 
