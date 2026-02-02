@@ -90,6 +90,45 @@ def ensure_mastered_words_shape():
             st.session_state.mastered_words.setdefault(k, set())
 
 # ============================================================
+# ✅ (추가 FIX) "완전 초기화(한 문제도 풀기 전)"를 위한 UI 상태 정리
+#    - 현재 유형만 대상으로, 위젯 키(q_...)까지 싹 지워야 진짜 초기화 됩니다.
+# ============================================================
+def reset_quiz_ui_state(target_qtype: str, rebuild: bool = True):
+    """
+    ✅ 해당 유형(target_qtype)만 '한 문제도 풀기 전' 상태로 초기화
+    - mastered_words[target_qtype] 초기화
+    - 제출/오답/저장 플래그 초기화
+    - 문항 라디오 위젯 키(q_...) 전부 삭제 (잔상 제거)
+    - quiz_version 증가 (새 위젯으로 인식)
+    - 필요 시 새 퀴즈 재생성
+    """
+    ensure_mastered_words_shape()
+
+    # 1) 현재 유형 mastered 초기화
+    st.session_state.mastered_words[target_qtype] = set()
+
+    # 2) 제출/오답/저장 관련 상태 초기화
+    st.session_state.submitted = False
+    st.session_state.wrong_list = []
+    st.session_state.saved_this_attempt = False
+    st.session_state.stats_saved_this_attempt = False
+    st.session_state.session_stats_applied_this_attempt = False
+
+    # 3) 문항 라디오 위젯 키 삭제 (이게 없으면 "두 번 눌러야 먹는" 현상/잔상이 남습니다)
+    keys_to_del = [k for k in list(st.session_state.keys()) if isinstance(k, str) and k.startswith("q_")]
+    for k in keys_to_del:
+        st.session_state.pop(k, None)
+
+    # 4) 버전 증가(새 위젯으로 강제)
+    st.session_state.quiz_version = int(st.session_state.get("quiz_version", 0)) + 1
+
+    # 5) 퀴즈/answers 새로 세팅
+    if rebuild:
+        st.session_state.quiz_type = target_qtype
+        st.session_state.quiz = build_quiz(target_qtype)
+        st.session_state.answers = [None] * len(st.session_state.quiz)
+
+# ============================================================
 # ✅ 유틸: JWT 만료 감지 + 세션 갱신 + DB 호출 래퍼
 # ============================================================
 def is_jwt_expired_error(e: Exception) -> bool:
@@ -996,31 +1035,30 @@ def build_quiz(qtype: str) -> list:
     if len(base_pool) < N:
         if len(base_pool) == 0:
             st.success("완벽합니다. 드디어 모두 정복했어요 ✅")
-            st.info("복습/재도전을 원하시면 상단의 [맞힌 단어 제외 초기화] 후 **[새 문제]**를 눌러주세요.")
+            st.info("복습/재도전을 원하시면 아래 버튼으로 **현재 유형만** 초기화할 수 있어요.")
 
-            # ✅ PC에서 버튼 작게 보이는 것 방지: 세로로 큼직하게 2개
+            # ✅ 여기서 핵심: '원클릭 초기화'는 UI 상태(q_...)까지 삭제해야 진짜 초기화
             if st.button("🧹 여기서 바로 초기화(원클릭)", use_container_width=True, key="btn_inline_reset_mastered"):
-                st.session_state.mastered_words[qtype] = set()
-                st.session_state.quiz = build_quiz(qtype)
-                st.session_state.submitted = False
-                st.session_state.wrong_list = []
-                st.session_state.saved_this_attempt = False
-                st.session_state.stats_saved_this_attempt = False
-                st.session_state.session_stats_applied_this_attempt = False
-                st.session_state.quiz_version += 1
+                reset_quiz_ui_state(qtype, rebuild=True)
                 st.rerun()
 
             if st.button("❌ 오답만 다시 풀기", use_container_width=True, key="btn_inline_retry_wrongs"):
                 if not st.session_state.get("wrong_list"):
                     st.warning("현재 오답 노트가 비어 있어요. 🙂")
                 else:
+                    # 오답 재도전도 '잔상 제거'가 안전합니다 (q_키 삭제 + 버전업)
+                    keys_to_del = [k for k in list(st.session_state.keys()) if isinstance(k, str) and k.startswith("q_")]
+                    for k in keys_to_del:
+                        st.session_state.pop(k, None)
+
                     st.session_state.quiz = build_quiz_from_wrongs(st.session_state.wrong_list, qtype)
                     st.session_state.submitted = False
                     st.session_state.wrong_list = []
                     st.session_state.saved_this_attempt = False
                     st.session_state.stats_saved_this_attempt = False
                     st.session_state.session_stats_applied_this_attempt = False
-                    st.session_state.quiz_version += 1
+                    st.session_state.quiz_version = int(st.session_state.get("quiz_version", 0)) + 1
+                    st.session_state.answers = [None] * len(st.session_state.quiz)
                     st.rerun()
 
             st.stop()
@@ -1086,6 +1124,11 @@ selected = st.radio(
 
 if selected != st.session_state.quiz_type:
     st.session_state.quiz_type = selected
+    # 유형 바꿀 때도 q_잔상 제거 + 버전업이 안전합니다
+    keys_to_del = [k for k in list(st.session_state.keys()) if isinstance(k, str) and k.startswith("q_")]
+    for k in keys_to_del:
+        st.session_state.pop(k, None)
+
     st.session_state.quiz = build_quiz(selected)
     st.session_state.submitted = False
     st.session_state.wrong_list = []
@@ -1093,6 +1136,7 @@ if selected != st.session_state.quiz_type:
     st.session_state.stats_saved_this_attempt = False
     st.session_state.session_stats_applied_this_attempt = False
     st.session_state.quiz_version += 1
+    st.session_state.answers = [None] * len(st.session_state.quiz)
     st.rerun()
 
 st.caption(f"현재 선택: **{quiz_label_map[st.session_state.quiz_type]}**")
@@ -1102,6 +1146,11 @@ col1, col2 = st.columns(2)
 
 with col1:
     if st.button("🔄 새 문제(랜덤 10문항)", use_container_width=True, key="btn_new_quiz"):
+        # 새 문제도 q_키 삭제 + 버전업이 안정적
+        keys_to_del = [k for k in list(st.session_state.keys()) if isinstance(k, str) and k.startswith("q_")]
+        for k in keys_to_del:
+            st.session_state.pop(k, None)
+
         st.session_state.quiz = build_quiz(st.session_state.quiz_type)
         st.session_state.submitted = False
         st.session_state.wrong_list = []
@@ -1109,13 +1158,20 @@ with col1:
         st.session_state.stats_saved_this_attempt = False
         st.session_state.session_stats_applied_this_attempt = False
         st.session_state.quiz_version += 1
+        st.session_state.answers = [None] * len(st.session_state.quiz)
         st.rerun()
 
 with col2:
     if st.button("🧹 선택 초기화", use_container_width=True, key="btn_reset_choice"):
+        # 보기 선택만 초기화: q_키 삭제 + 버전업
+        keys_to_del = [k for k in list(st.session_state.keys()) if isinstance(k, str) and k.startswith("q_")]
+        for k in keys_to_del:
+            st.session_state.pop(k, None)
+
         st.session_state.submitted = False
         st.session_state.session_stats_applied_this_attempt = False
         st.session_state.quiz_version += 1
+        st.session_state.answers = [None] * len(st.session_state.quiz)
         st.rerun()
 
 st.divider()
@@ -1124,8 +1180,7 @@ st.divider()
 # ✅ (핵심 FIX) 맞힌 단어 제외 초기화: 현재 유형만 초기화
 # ============================================================
 if st.button("✅ 맞힌 단어 제외 초기화", use_container_width=True, key="btn_reset_mastered_current_type"):
-    ensure_mastered_words_shape()
-    st.session_state.mastered_words[st.session_state.quiz_type] = set()
+    reset_quiz_ui_state(st.session_state.quiz_type, rebuild=True)
     st.success(f"초기화 완료 (유형: {quiz_label_map[st.session_state.quiz_type]})")
     st.rerun()
 
@@ -1382,6 +1437,11 @@ if st.session_state.submitted:
                 st.warning("오답이 없어서 다시 풀 문제가 없습니다.")
                 st.stop()
 
+            # 오답 재도전도 q_키 삭제 + 버전업
+            keys_to_del = [k for k in list(st.session_state.keys()) if isinstance(k, str) and k.startswith("q_")]
+            for k in keys_to_del:
+                st.session_state.pop(k, None)
+
             st.session_state.quiz = build_quiz_from_wrongs(st.session_state.wrong_list, current_type)
             st.session_state.submitted = False
             st.session_state.wrong_list = []
@@ -1389,6 +1449,7 @@ if st.session_state.submitted:
             st.session_state.stats_saved_this_attempt = False
             st.session_state.session_stats_applied_this_attempt = False
             st.session_state.quiz_version += 1
+            st.session_state.answers = [None] * len(st.session_state.quiz)
             st.rerun()
 
     st.divider()
