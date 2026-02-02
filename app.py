@@ -61,6 +61,10 @@ def save_progress_to_cookie():
             "submitted": st.session_state.get("submitted"),
             "wrong_list": st.session_state.get("wrong_list"),
         }
+        raw = json.dumps(payload, ensure_ascii=False)
+        # ✅ 너무 커지면 저장 포기(앱이 죽는 것보다 낫다)
+        if len(raw.encode("utf-8")) > 3500:   # 여유있게 컷(브라우저마다 다름)
+            return
         cookies[PROGRESS_COOKIE_KEY] = json.dumps(payload, ensure_ascii=False)
         cookies.save()
     except Exception:
@@ -255,10 +259,18 @@ def run_db(callable_fn):
                 st.stop()
             raise
 
-def to_kst_naive(series_or_value):
-    ts = pd.to_datetime(series_or_value, utc=True, errors="coerce")
-    return ts.dt.tz_convert(KST_TZ).dt.tz_localize(None)
+def to_kst_naive(x):
+    ts = pd.to_datetime(x, utc=True, errors="coerce")
 
+    # Series / DataFrame column
+    if hasattr(ts, "dt"):
+        return ts.dt.tz_convert(KST_TZ).dt.tz_localize(None)
+
+    # scalar
+    if pd.isna(ts):
+        return ts
+    return ts.tz_convert(KST_TZ).tz_localize(None)
+  
 # ============================================================
 # ✅ DB 함수
 # ============================================================
@@ -991,7 +1003,11 @@ def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
     retry_df = pool_i[
         (pool_i["jp_word"].isin(wrong_words)) | (pool_i["reading"].isin(wrong_words))
     ].copy()
-
+    if qtype == "kr2jp":
+        retry_df = retry_df[retry_df["jp_word"].astype(str).str.strip() != ""].copy()
+    if len(retry_df) == 0:
+        st.warning("오답 단어 중에 '한→일' 출제가 가능한(표기(jp_word)가 있는) 단어가 없습니다.")
+        return []
     if len(retry_df) == 0:
         st.error("오답 단어를 풀에서 찾지 못했습니다. (jp_word/reading 매칭 확인)")
         st.stop()
@@ -1154,7 +1170,9 @@ if st.button("✅ 맞힌 단어 제외 초기화", use_container_width=True, key
     start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
 
     st.success(f"초기화 완료 (유형: {quiz_label_map[st.session_state.quiz_type]})")
+    save_progress_to_cookie()
     st.rerun()
+
 
 # ============================================================
 # ✅ answers 길이 자동 맞춤
@@ -1180,7 +1198,6 @@ for idx, q in enumerate(st.session_state.quiz):
         label_visibility="collapsed",
     )
     st.session_state.answers[idx] = choice
-    save_progress_to_cookie() 
     st.divider()
 
 # ============================================================
@@ -1191,6 +1208,8 @@ all_answered = all(a is not None for a in st.session_state.answers)
 if st.button("✅ 제출하고 채점하기", disabled=not all_answered, type="primary", use_container_width=True, key="btn_submit"):
     st.session_state.submitted = True
     st.session_state.session_stats_applied_this_attempt = False
+    save_progress_to_cookie()   # ✅ 제출 상태도 쿠키에 반영
+    st.rerun()                  # ✅ 결과 화면으로 확실히 이동
 
 if not all_answered:
     st.info("모든 문제에 답을 선택하면 제출 버튼이 활성화됩니다.")
@@ -1440,6 +1459,7 @@ if st.session_state.submitted:
         st.session_state.history = []
         st.session_state.wrong_counter = {}
         st.session_state.total_counter = {}
+        save_progress_to_cookie()
         st.rerun()
 
     render_naver_talk()
