@@ -13,32 +13,35 @@ st.set_page_config(page_title="JLPT Quiz", layout="centered")
 st.markdown("""
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap" rel="stylesheet">
 
 <style>
 :root{
-  --jp-sans: "BIZ UDGothic","Noto Sans JP","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
+  --jp-sans: "M PLUS Rounded 1c","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
 }
 
-/* 기본도 고딕 */
+/* 기본 */
 .jp, .jp *{
   font-family: var(--jp-sans) !important;
   line-height: 1.72;
   letter-spacing: .15px;
 }
 
-/* 문제 문장도 고딕(사실상 동일하지만 유지해둠) */
+/* ✅ 문제 문장만 조금 더 묵직하게 */
 .jp-prompt, .jp-prompt *{
   font-family: var(--jp-sans) !important;
+  font-weight: 700 !important;
   line-height: 1.72;
   letter-spacing: .15px;
 }
 
+/* 보기(라디오) */
 div[data-testid="stRadio"] *,
 div[data-baseweb="radio"] *,
 label[data-baseweb="radio"] *,
 div[role="radiogroup"] *{
   font-family: var(--jp-sans) !important;
+  font-weight: 500 !important;
   letter-spacing: .15px;
   line-height: 1.65;
 }
