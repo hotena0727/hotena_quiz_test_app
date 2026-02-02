@@ -10,66 +10,22 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # ============================================================
 st.set_page_config(page_title="JLPT Quiz", layout="centered")
 
-st.markdown(
-    """
+st.markdown("""
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=Noto+Sans+JP:wght@400;500;700;800&display=swap" rel="stylesheet">
+
 <style>
-
-/* ✅ big CTA 버튼 스타일 (PC에서도 큼직하게) */
-div.stButton > button {
-  width: 100% !important;     /* 혹시 모를 폭 강제 */
-  padding: 14px 16px !important;
-  font-size: 16px !important;
-  font-weight: 800 !important;
-  border-radius: 14px !important;
-}
-
-@import url('https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=Noto+Sans+JP:wght@400;500;700;800&display=swap');
 :root{ --jp-rounded: "Noto Sans JP","Kosugi Maru","Hiragino Sans","Yu Gothic","Meiryo",sans-serif; }
 .jp, .jp *{ font-family: var(--jp-rounded) !important; line-height:1.7; letter-spacing:.2px; }
 
-/* ✅ 라디오(보기) 텍스트까지 일본어 폰트 강제 */
-div[data-testid="stRadio"] label, 
-div[data-testid="stRadio"] span,
-div[data-testid="stRadio"] p {
-  font-family: var(--jp-rounded) !important;
-}
-
-/* (옵션) 셀렉트/멀티셀렉트 등도 일본어 폰트 적용하고 싶으면 */
-div[data-testid="stSelectbox"] * ,
-div[data-testid="stMultiSelect"] * {
-  font-family: var(--jp-rounded) !important;
-}
-
-/* 버튼 줄바꿈 완화(전체 버튼에 적용) */
-div.stButton>button { white-space: nowrap !important; }
-
-/* =========================================================
-   ✅ (모바일 대응) st.radio 보기 텍스트에 일본어 폰트 강제
-   - Streamlit radio는 BaseWeb 컴포넌트라 이쪽을 잡아야 확실함
-   ========================================================= */
-
-/* radio 전체(라벨/텍스트 포함) */
-div[data-testid="stRadio"] * {
-  font-family: var(--jp-rounded) !important;
-}
-
-/* BaseWeb radio 내부까지 더 강하게 */
+div[data-testid="stRadio"] * ,
 div[data-baseweb="radio"] * ,
 label[data-baseweb="radio"] * {
   font-family: var(--jp-rounded) !important;
 }
-
-/* 혹시 span이 따로 폰트 먹는 경우까지 커버 */
-div[data-testid="stRadio"] label span,
-div[data-testid="stRadio"] label p,
-div[data-testid="stRadio"] label div {
-  font-family: var(--jp-rounded) !important;
-}
-
 </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
 st.title("い형용사 퀴즈")
 
