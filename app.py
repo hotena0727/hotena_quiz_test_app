@@ -13,22 +13,44 @@ st.set_page_config(page_title="JLPT Quiz", layout="centered")
 st.markdown("""
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Yomogi&family=Zen+Maru+Gothic:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;600;700&family=BIZ+UDGothic:wght@400;700&display=swap" rel="stylesheet">
 
 <style>
 :root{
-  --jp-main: "Zen Maru Gothic","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
-  --jp-cute: "Hachi Maru Pop","Zen Maru Gothic",sans-serif;
+  /* 보기/버튼/일반 UI: 또렷한 고딕 */
+  --jp-sans: "BIZ UDGothic","Noto Sans JP","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
+
+  /* 문제(프롬프트) 문장: 살짝 품격 있는 명조 */
+  --jp-serif: "Shippori Mincho","Hiragino Mincho ProN","Yu Mincho",serif;
 }
-.jp, .jp *{ font-family: var(--jp-main) !important; line-height:1.72; letter-spacing:.15px; }
 
-/* 예: 상단 환영문/배지/짧은 강조만 귀엽게 */
-.jp-cute, .jp-cute *{ font-family: var(--jp-cute) !important; }
+/* 기본은 고딕 */
+.jp, .jp *{
+  font-family: var(--jp-sans) !important;
+  line-height: 1.72;
+  letter-spacing: .15px;
+}
 
-div[data-testid="stRadio"] * ,
-div[data-baseweb="radio"] * ,
-label[data-baseweb="radio"] * {
-  font-family: var(--jp-main) !important;
+/* 문제 문장만 명조 */
+.jp-prompt, .jp-prompt *{
+  font-family: var(--jp-serif) !important;
+  line-height: 1.85;
+  letter-spacing: .10px;
+}
+
+/* 라디오(보기) 강제: Streamlit/BaseWeb 라디오 전체에 고딕 적용 */
+div[data-testid="stRadio"] *,
+div[data-baseweb="radio"] *,
+label[data-baseweb="radio"] *,
+div[role="radiogroup"] *{
+  font-family: var(--jp-sans) !important;
+  letter-spacing: .15px;
+  line-height: 1.65;
+}
+
+/* 보기 텍스트가 길어질 때 줄바꿈/가독성 */
+label[data-baseweb="radio"]{
+  white-space: normal !important;
 }
 </style>
 """, unsafe_allow_html=True)
