@@ -11,13 +11,13 @@ from streamlit_cookies_manager import EncryptedCookieManager
 st.set_page_config(page_title="JLPT Quiz", layout="centered")
 
 st.markdown("""
-<link href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
 
 <style>
 :root{
-  --jp: "BIZ UDGothic","Noto Sans JP","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
+  --jp: "Zen Kaku Gothic New","Noto Sans JP","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
 }
-.jp, .jp *{ font-family: var(--jp) !important; line-height:1.7; letter-spacing:.15px; }
+.jp, .jp *{ font-family: var(--jp) !important; line-height:1.75; letter-spacing:.2px; }
 </style>
 
 """, unsafe_allow_html=True)
