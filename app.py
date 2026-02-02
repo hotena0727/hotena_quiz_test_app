@@ -11,15 +11,48 @@ from streamlit_cookies_manager import EncryptedCookieManager
 st.set_page_config(page_title="JLPT Quiz", layout="centered")
 
 st.markdown("""
-<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;600;700&family=BIZ+UDGothic:wght@400;700&display=swap" rel="stylesheet">
 
 <style>
 :root{
-  --jp: "Zen Kaku Gothic New","Noto Sans JP","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
-}
-.jp, .jp *{ font-family: var(--jp) !important; line-height:1.75; letter-spacing:.2px; }
-</style>
+  /* 보기/버튼/일반 UI: 또렷한 고딕 */
+  --jp-sans: "BIZ UDGothic","Noto Sans JP","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
 
+  /* 문제(프롬프트) 문장: 살짝 품격 있는 명조 */
+  --jp-serif: "Shippori Mincho","Hiragino Mincho ProN","Yu Mincho",serif;
+}
+
+/* 기본은 고딕 */
+.jp, .jp *{
+  font-family: var(--jp-sans) !important;
+  line-height: 1.72;
+  letter-spacing: .15px;
+}
+
+/* 문제 문장만 명조 */
+.jp-prompt, .jp-prompt *{
+  font-family: var(--jp-serif) !important;
+  line-height: 1.85;
+  letter-spacing: .10px;
+}
+
+/* 라디오(보기) 강제: Streamlit/BaseWeb 라디오 전체에 고딕 적용 */
+div[data-testid="stRadio"] *,
+div[data-baseweb="radio"] *,
+label[data-baseweb="radio"] *,
+div[role="radiogroup"] *{
+  font-family: var(--jp-sans) !important;
+  letter-spacing: .15px;
+  line-height: 1.65;
+}
+
+/* 보기 텍스트가 길어질 때 줄바꿈/가독성 */
+label[data-baseweb="radio"]{
+  white-space: normal !important;
+}
+</style>
 """, unsafe_allow_html=True)
 
 # ============================================================
