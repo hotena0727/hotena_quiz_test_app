@@ -37,7 +37,7 @@ cookies = EncryptedCookieManager(
     password=st.secrets.get("COOKIE_PASSWORD", "change-me-please"),
 )
 if not cookies.ready():
-    st.info("쿠키를 초기화하는 중입니다. 잠시 후 자동으로 다시 시도됩니다.")
+    st.info("쿠키를 초기화하는 중입니다… 잠시 후 자동으로 다시 시도됩니다.")
     st.stop()
 
 # ============================================================
@@ -91,9 +91,6 @@ def clear_progress_cookie():
         pass
 
 # ✅ [추가 끝]
-
-# ✅ Supabase 연결
-...
 
 
 # ============================================================
