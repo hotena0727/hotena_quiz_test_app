@@ -27,6 +27,17 @@ div.stButton > button {
 :root{ --jp-rounded: "Kosugi Maru","Hiragino Sans","Yu Gothic","Meiryo",sans-serif; }
 .jp, .jp *{ font-family: var(--jp-rounded) !important; line-height:1.7; letter-spacing:.2px; }
 
+/* ✅ 라디오(보기) 텍스트도 일본어 폰트로 강제 */
+div[data-testid="stRadio"] * {
+  font-family: var(--jp-rounded) !important;
+}
+
+/* (옵션) 셀렉트/멀티셀렉트 등도 일본어 폰트 적용하고 싶으면 */
+div[data-testid="stSelectbox"] * ,
+div[data-testid="stMultiSelect"] * {
+  font-family: var(--jp-rounded) !important;
+}
+
 /* 버튼 줄바꿈 완화(전체 버튼에 적용) */
 div.stButton>button { white-space: nowrap !important; }
 </style>
