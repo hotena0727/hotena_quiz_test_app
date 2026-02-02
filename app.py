@@ -71,29 +71,6 @@ div[data-testid="stRadio"] label div {
     unsafe_allow_html=True,
 )
 
-/* =========================================================
-   ✅ (모바일 대응) st.radio 보기 텍스트에 일본어 폰트 강제
-   - Streamlit radio는 BaseWeb 컴포넌트라 이쪽을 잡아야 확실함
-   ========================================================= */
-
-/* radio 전체(라벨/텍스트 포함) */
-div[data-testid="stRadio"] * {
-  font-family: var(--jp-rounded) !important;
-}
-
-/* BaseWeb radio 내부까지 더 강하게 */
-div[data-baseweb="radio"] * ,
-label[data-baseweb="radio"] * {
-  font-family: var(--jp-rounded) !important;
-}
-
-/* 혹시 span이 따로 폰트 먹는 경우까지 커버 */
-div[data-testid="stRadio"] label span,
-div[data-testid="stRadio"] label p,
-div[data-testid="stRadio"] label div {
-  font-family: var(--jp-rounded) !important;
-}
-
 st.title("い형용사 퀴즈")
 
 # ============================================================
