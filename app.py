@@ -13,18 +13,22 @@ st.set_page_config(page_title="JLPT Quiz", layout="centered")
 st.markdown("""
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&family=Kiwi+Maru:wght@400;500&family=Kosugi+Maru&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Hachi+Maru+Pop&family=Zen+Maru+Gothic:wght@400;500;700&display=swap" rel="stylesheet">
 
 <style>
 :root{
-  --jp-rounded: "Zen Maru Gothic","Kiwi Maru","Kosugi Maru","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
+  --jp-main: "Zen Maru Gothic","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
+  --jp-cute: "Hachi Maru Pop","Zen Maru Gothic",sans-serif;
 }
-.jp, .jp *{ font-family: var(--jp-rounded) !important; line-height:1.72; letter-spacing:.15px; }
+.jp, .jp *{ font-family: var(--jp-main) !important; line-height:1.72; letter-spacing:.15px; }
+
+/* 예: 상단 환영문/배지/짧은 강조만 귀엽게 */
+.jp-cute, .jp-cute *{ font-family: var(--jp-cute) !important; }
+
 div[data-testid="stRadio"] * ,
 div[data-baseweb="radio"] * ,
 label[data-baseweb="radio"] * {
-  font-family: var(--jp-rounded) !important;
-  letter-spacing:.15px;
+  font-family: var(--jp-main) !important;
 }
 </style>
 """, unsafe_allow_html=True)
