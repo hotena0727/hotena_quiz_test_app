@@ -59,8 +59,16 @@ LEVEL = "N4"
 N = 10
 KST_TZ = "Asia/Seoul"
 
-quiz_label_map = {"reading": "발음", "meaning": "뜻"}
-quiz_label_for_table = {"reading": "발음", "meaning": "뜻"}
+quiz_label_map = {
+    "reading": "발음",
+    "meaning": "뜻",
+    "kr2jp": "한→일",   # ✅ 추가
+}
+quiz_label_for_table = {
+    "reading": "발음",
+    "meaning": "뜻",
+    "kr2jp": "한→일",   # ✅ 추가
+}
 
 # ============================================================
 # ✅ 유틸: JWT 만료 감지 + 세션 갱신 + DB 호출 래퍼
@@ -869,11 +877,10 @@ if len(pool_i) < N:
 # ✅ 퀴즈 로직
 # ============================================================
 def make_question(row: pd.Series, qtype: str, base_pool_i: pd.DataFrame, distractor_pool_level: pd.DataFrame) -> dict:
-    if pd.isna(row.get("reading")) or pd.isna(row.get("meaning")):
-        raise ValueError("NaN row detected in pool. Please clean CSV.")
-
     jp = row.get("jp_word")
     rd = row.get("reading")
+    mn = row.get("meaning")
+
     display_word = jp if pd.notna(jp) and str(jp).strip() != "" else rd
 
     if qtype == "reading":
@@ -883,13 +890,30 @@ def make_question(row: pd.Series, qtype: str, base_pool_i: pd.DataFrame, distrac
             base_pool_i.loc[base_pool_i["reading"] != correct, "reading"]
             .dropna().drop_duplicates().tolist()
         )
-    else:
+
+    elif qtype == "meaning":
         prompt = f"{display_word}의 뜻은?"
         correct = row["meaning"]
         candidates = (
             distractor_pool_level.loc[distractor_pool_level["meaning"] != correct, "meaning"]
             .dropna().drop_duplicates().tolist()
         )
+
+    elif qtype == "kr2jp":
+        # ✅ 한국어 뜻을 보고 일본어를 고르기
+        prompt = f"'{mn}'의 일본어는?"
+        correct = str(row["jp_word"]).strip()
+
+        # 오답 후보: jp_word들(정답 제외)
+        candidates = (
+            base_pool_i.loc[base_pool_i["jp_word"] != correct, "jp_word"]
+            .dropna().astype(str).str.strip()
+        )
+        candidates = [x for x in candidates.tolist() if x]  # 빈값 제거
+        candidates = list(dict.fromkeys(candidates))         # 중복 제거(순서 유지)
+
+    else:
+        raise ValueError("Unknown qtype")
 
     if len(candidates) < 3:
         st.error(f"오답 후보 부족: 유형={qtype}, 후보={len(candidates)}개")
@@ -910,13 +934,21 @@ def make_question(row: pd.Series, qtype: str, base_pool_i: pd.DataFrame, distrac
         "qtype": qtype,
     }
 
+
 if st.button("✅ 맞힌 단어 제외 초기화", use_container_width=True):
     st.session_state.mastered_words = set()
     st.success("초기화 완료")
     st.rerun()
 
 def build_quiz(qtype: str) -> list:
-    base_pool = pool_i_reading if qtype == "reading" else pool_i_meaning
+    if qtype == "reading":
+        base_pool = pool_i_reading
+    elif qtype == "meaning":
+        base_pool = pool_i_meaning
+    elif qtype == "kr2jp":
+        base_pool = pool_i_reading
+    else:
+        base_pool = pool_i_meaning
 
     # ✅ 맞힌 단어 제외 (jp_word/reading 둘 다로 매칭)
     mastered = st.session_state.get("mastered_words", set())
@@ -1014,7 +1046,7 @@ if "quiz" not in st.session_state:
 # ============================================================
 selected = st.radio(
     "출제 유형",
-    options=["reading", "meaning"],
+    options=["reading", "meaning", "kr2jp"],
     format_func=lambda x: quiz_label_map[x],
     horizontal=True,
     index=["reading", "meaning"].index(st.session_state.quiz_type),
