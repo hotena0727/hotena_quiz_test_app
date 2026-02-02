@@ -5,8 +5,6 @@ import streamlit as st
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
 
-import base64, json, time
-
 # ============================================================
 # ✅ Streamlit 기본 설정 (최상단)
 # ============================================================
@@ -120,27 +118,6 @@ def is_jwt_expired_error(e: Exception) -> bool:
     msg = str(e).lower()
     return ("jwt expired" in msg) or ("pgrst303" in msg)
 
-def _jwt_exp_unix(token: str):
-    try:
-        parts = token.split(".")
-        if len(parts) < 2:
-            return None
-        payload_b64 = parts[1] + "==="
-        payload_json = base64.urlsafe_b64decode(payload_b64.encode("utf-8"))
-        payload = json.loads(payload_json.decode("utf-8"))
-        exp = payload.get("exp")
-        return int(exp) if exp else None
-    except Exception:
-        return None
-
-def is_token_expiring_soon(token: str, leeway_seconds: int = 90) -> bool:
-    exp = _jwt_exp_unix(token)
-    if not exp:
-        return False
-    now = int(time.time())
-    return (exp - now) <= leeway_seconds
-
-
 def clear_auth_everywhere():
     try:
         cookies["access_token"] = ""
@@ -195,17 +172,10 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
         return False
 
 def get_authed_sb():
-    # 1) 토큰이 없으면 무조건 refresh 시도
     if not st.session_state.get("access_token"):
         refresh_session_from_cookie_if_needed(force=True)
 
     token = st.session_state.get("access_token")
-
-    # 2) 토큰이 있는데 만료 임박이면 선제 refresh
-    if token and is_token_expiring_soon(token, leeway_seconds=90):
-        refresh_session_from_cookie_if_needed(force=True)
-        token = st.session_state.get("access_token")
-
     if not token:
         return None
 
@@ -213,21 +183,17 @@ def get_authed_sb():
     sb2.postgrest.auth(token)
     return sb2
 
-def run_db(callable_fn, retry_once: bool = True):
+def run_db(callable_fn):
     try:
         return callable_fn()
     except Exception as e:
         if is_jwt_expired_error(e):
             ok = refresh_session_from_cookie_if_needed(force=True)
-
-            # ✅ rerun 대신, 1번만 재시도
-            if ok and retry_once:
-                return run_db(callable_fn, retry_once=False)
-
+            if ok:
+                st.rerun()
             clear_auth_everywhere()
             st.warning("세션이 만료되었습니다. 다시 로그인해 주세요.")
             st.rerun()
-
         raise
 
 def to_kst_naive(series_or_value):
@@ -459,14 +425,9 @@ def auth_box():
                 st.stop()
 
 def require_login():
-    # 세션_state가 날아가도 쿠키로 복구 시도
-    if st.session_state.get("user") is None:
-        refresh_session_from_cookie_if_needed(force=True)
-
     if st.session_state.get("user") is None:
         auth_box()
         st.stop()
-
 
 # ============================================================
 # ✅ 네이버톡 배너 (제출 후만)
@@ -661,10 +622,7 @@ def render_admin_dashboard():
     show_debug = st.toggle("디버그 정보 표시", value=False, key="toggle_admin_debug")
 
     def _fetch():
-        sbx = get_authed_sb()
-        if sbx is None:
-            raise RuntimeError("no access token")
-        return fetch_all_attempts_admin(sbx, limit=500)
+        return fetch_all_attempts_admin(sb_authed_local, limit=500)
 
     try:
         res = run_db(_fetch)
@@ -672,7 +630,6 @@ def render_admin_dashboard():
         st.error("❌ 관리자 조회 실패 (RLS/권한/테이블/컬럼 확인 필요)")
         st.write(str(e))
         return
-
 
     rows = len(res.data) if getattr(res, "data", None) else 0
     if show_debug:
@@ -704,19 +661,16 @@ def render_my_dashboard():
         st.session_state.page = "quiz"
         st.rerun()
 
+    sb_authed_local = get_authed_sb()
+    if sb_authed_local is None:
+        st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
+        return
+
     def _fetch():
-        sbx = get_authed_sb()
-        if sbx is None:
-            raise RuntimeError("no access token")
-        return fetch_recent_attempts(sbx, user_id, limit=50)
+        return fetch_recent_attempts(sb_authed_local, user_id, limit=50)
 
     try:
         res = run_db(_fetch)
-    except Exception as e:
-        st.info("기록을 불러오지 못했습니다.")
-        st.write(str(e))
-        return
-
     except Exception as e:
         st.info("기록을 불러오지 못했습니다.")
         st.write(str(e))
@@ -1255,36 +1209,13 @@ if st.session_state.submitted:
             except Exception:
                 st.caption("※ 단어 통계(stats) 저장이 실패했습니다. (RPC/권한/RLS 확인 필요)")
 
-                    st.write(str(e))
-
-            if not st.session_state.stats_saved_this_attempt:
-                 def _save_stats():
-                      sbx = get_authed_sb()
-                      if sbx is None:
-                          raise RuntimeError("no access token")
-                      return save_word_stats_via_rpc(
-                          sb_authed=sbx,
-                          quiz=st.session_state.quiz,
-                          answers=st.session_state.answers,
-                          quiz_type=current_type,
-                          level=LEVEL,
-                      )
-
-        run_db(_save_stats)
-                st.session_state.stats_saved_this_attempt = True
-            except Exception:
-                st.caption("※ 단어 통계(stats) 저장이 실패했습니다. (RPC/권한/RLS 확인 필요)")
-
         st.subheader("📌 내 최근 기록")
 
         def _fetch_hist():
-            sbx = get_authed_sb()
-            if sbx is None:
-                raise RuntimeError("no access token")
-            return fetch_recent_attempts(sbx, user_id, limit=10)
+            return fetch_recent_attempts(sb_authed_local, user_id, limit=10)
 
-        res = run_db(_fetch_hist)
-
+        try:
+            res = run_db(_fetch_hist)
             if not res.data:
                 st.info("아직 저장된 기록이 없습니다. 문제를 풀고 제출하면 기록이 쌓여요.")
             else:
