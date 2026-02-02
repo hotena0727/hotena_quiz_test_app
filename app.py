@@ -929,7 +929,7 @@ def build_quiz(qtype: str) -> list:
     if len(base_pool) < N:
         # (A) 남은 0개 = 전부 마스터
         if len(base_pool) == 0:
-            st.success("벽합니다. 드디어 모두 정복했어요 ✅")
+            st.success("완벽합니다. 드디어 모두 정복했어요 ✅")
             st.info("복습/재도전을 원하시면 상단의 [맞힌 단어 제외 초기화] 후 **[새 문제]**를 눌러주세요.")
 
             # ✅ 여기서 바로 초기화(원클릭) UI
