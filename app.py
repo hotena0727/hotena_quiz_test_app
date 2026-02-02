@@ -13,11 +13,15 @@ st.set_page_config(page_title="JLPT Quiz", layout="centered")
 st.markdown("""
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800&family=Zen+Maru+Gothic:wght@400;500;700&family=Kosugi+Maru&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 
 <style>
 :root{
-  --jp-rounded: "M PLUS Rounded 1c","Zen Maru Gothic","Kosugi Maru","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
+  --jp: "Noto Sans JP","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
+}
+.jp, .jp *{ font-family: var(--jp) !important; line-height:1.7; letter-spacing:.2px; }
+div[data-testid="stRadio"] *, div[data-baseweb="radio"] *, label[data-baseweb="radio"] *{
+  font-family: var(--jp) !important;
 }
 
 /* 질문/보기 전부 */
