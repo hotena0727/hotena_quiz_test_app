@@ -311,13 +311,13 @@ require_login()
 user = st.session_state.user
 user_id = user.id
 
-# ✅✅✅ (저장 관련) sb_authed는 쓰기 전에 먼저 만들어야 함
+st.write("✅ 세션 user:", user.email if hasattr(user, "email") else user)
+st.write("✅ access_token 있음?", bool(st.session_state.get("access_token")))
+st.write("✅ sb_authed 생성됨?", sb_authed is not None)
+
+
+# RLS용 클라이언트 (있을 수도/없을 수도)
 sb_authed = get_authed_sb()
-
-st.write("token 있음?", bool(st.session_state.get("access_token")))
-st.write("sb_authed None?", sb_authed is None)
-st.write("user_id:", user_id)
-
 
 # 로그인 표시 + 로그아웃
 colA, colB = st.columns([7, 3])
@@ -420,7 +420,6 @@ def make_question(row: pd.Series, base_pool: pd.DataFrame) -> dict:
         "reading": row["reading"],
         "meaning": row["meaning"],
         "pos": row["pos"],
-        "quiz_type": qtype,   # ✅(저장 관련) quiz_type 보관
     }
 
 
@@ -505,37 +504,6 @@ if selected != st.session_state.pos_mode:
     st.session_state.quiz_version += 1
     st.rerun()
 
-st.divider()
-if st.button("🧪 RPC 테스트(1회)"):
-    sb_authed = get_authed_sb()
-
-    st.write("token 있음?", bool(st.session_state.get("access_token")))
-    st.write("sb_authed:", sb_authed is not None)
-
-    # ✅ 1) 토큰/클라이언트 없으면 여기서 즉시 종료
-    if sb_authed is None:
-        st.error("❌ sb_authed가 None입니다. (로그인 토큰 없이 RPC 호출하려는 상태)")
-        st.stop()
-
-    # ✅ 2) RPC 호출
-    try:
-        sb_authed.rpc(
-            "record_word_result",
-            {
-                "p_word_key": "TEST_WORD",
-                "p_level": LEVEL,
-                "p_pos": "i_adj",
-                "p_quiz_type": "debug",
-                "p_is_correct": True,
-            },
-        ).execute()
-        st.success("✅ RPC 호출 성공")
-
-    except Exception as e:
-        # ✅ 3) 에러를 '전문'으로 보여줘야 원인 파악 가능
-        st.error("❌ RPC 호출 실패")
-        st.exception(e)
-
 st.caption(f"현재 선택: **{mode_label_map[st.session_state.pos_mode]}**")
 st.divider()
 
@@ -598,14 +566,6 @@ if not all_answered:
     st.info("모든 문제에 답을 선택하면 제출 버튼이 활성화됩니다.")
 
 if st.session_state.submitted:
-
-    # 🔥 FIX 1: sb_authed를 여기서 먼저 확보 (가장 중요)
-    sb_authed = get_authed_sb()
-
-    if sb_authed is None:
-        st.error("❌ 인증된 Supabase 클라이언트를 가져오지 못했습니다.")
-        st.stop()
-
     score = 0
     wrong_list = []
 
@@ -613,7 +573,7 @@ if st.session_state.submitted:
         picked = st.session_state.answers[idx]
         correct = q["correct_text"]
         is_correct = (picked == correct)
-
+    
         if is_correct:
             score += 1
         else:
@@ -627,21 +587,20 @@ if st.session_state.submitted:
                 "뜻": q["meaning"],
             })
 
-        # 🔥 FIX 2: sb_authed가 보장된 상태에서만 RPC 호출
-        try:
-            sb_authed.rpc(
-                "record_word_result",
-                {
-                    "p_word_key": q["jp_word"],
+        # ✅✅✅ 여기서 단어 통계 RPC 기록
+        if sb_authed is not None:
+            try:
+                sb_authed.rpc("record_word_result", {
+                    "p_word_key": q["jp_word"],     # ← DB 설계대로 word_key로 쓸 값
                     "p_level": LEVEL,
                     "p_pos": q["pos"],
-                    "p_quiz_type": q.get("quiz_type", "adj_quiz"),
-                    "p_is_correct": is_correct,
-                }
-            ).execute()
-        except Exception as e:
-            st.error("❌ 단어 통계(stats) 저장 실패")
-            st.exception(e)
+                    "p_quiz_type": "adj_quiz",      # 원하는 태그로 (예: "reading"/"meaning" 등도 가능)
+                    "p_is_correct": is_correct
+                }).execute()
+            except Exception as e:
+                st.error("❌ record_word_result RPC 실패")
+                st.write(getattr(e, "args", e))
+
 
     st.session_state.wrong_list = wrong_list
     quiz_len = len(st.session_state.quiz)
@@ -659,6 +618,7 @@ if st.session_state.submitted:
         st.warning("💪 괜찮아요! 틀린 문제는 성장의 재료예요. 다시 한 번 도전해봐요.")
 
     # ✅ DB 저장/조회는 sb_authed로만 (RLS 정책 통과)
+    sb_authed = get_authed_sb()
     if sb_authed is None:
         st.warning("DB 저장/조회용 토큰이 없습니다. (로그인 세션 토큰 확인 필요)")
     else:
@@ -676,10 +636,11 @@ if st.session_state.submitted:
                 )
                 st.session_state.saved_this_attempt = True
             except Exception as e:
-                st.error("DB 저장에 실패했습니다. (테이블/컬럼/권한/RLS 정책 확인 필요)")
-                st.write(getattr(e, "args", e))
+                st.error("❌ 단어 통계(stats) 저장 실패 - 아래 에러 확인")
+                st.exception(e)                 # <- 이게 핵심 (트레이스까지 보여줌)
+                st.write("e.args =", getattr(e, "args", None))
 
-        # ✅ 내 최근 기록 (예쁘게: 요약 + 카드 리스트)
+                # ✅ 내 최근 기록 (예쁘게: 요약 + 카드 리스트)
         st.subheader("📌 내 최근 기록")
 
         try:
@@ -778,7 +739,7 @@ if st.session_state.submitted:
                 for _, r in hist.iterrows():
                     dt = r["created_at"].strftime("%Y-%m-%d %H:%M")
                     mode = r["유형"]
-                    score2 = int(r["score"])
+                    score = int(r["score"])
                     total = int(r["quiz_len"])
                     wrong = int(r["wrong_count"])
                     pct = float(r["정답률"] * 100)
@@ -796,7 +757,7 @@ if st.session_state.submitted:
 <div class="record-card">
   <div class="record-top">
     <div>
-      <div class="record-title">{badge} {score2} / {total}</div>
+      <div class="record-title">{badge} {score} / {total}</div>
       <div class="record-sub">{dt} · {mode} · 레벨 {LEVEL}</div>
     </div>
     <div class="pill">오답 {wrong}개</div>
