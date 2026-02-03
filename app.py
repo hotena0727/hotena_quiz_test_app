@@ -93,6 +93,9 @@ def clear_question_widget_keys():
     for k in keys_to_del:
         st.session_state.pop(k, None)
 
+def mark_progress_dirty():
+    st.session_state.progress_dirty = True
+
 # ============================================================
 # ✅ (핵심) 퀴즈 상태를 "시험 시작 전"으로 한 방에 세팅
 #    - 어떤 버튼/상황에서도 이 함수만 부르면 일관되게 초기화됨
@@ -1115,6 +1118,8 @@ ensure_mastered_words_shape()
 
 if "history" not in st.session_state:
     st.session_state.history = []
+if "progress_dirty" not in st.session_state:
+    st.session_state.progress_dirty = False
 if "wrong_counter" not in st.session_state:
     st.session_state.wrong_counter = {}
 if "total_counter" not in st.session_state:
@@ -1201,16 +1206,21 @@ for idx, q in enumerate(st.session_state.quiz):
         index=None,
         key=f"q_{st.session_state.quiz_version}_{idx}",
         label_visibility="collapsed",
+        on_change=mark_progress_dirty
     )
     st.session_state.answers[idx] = choice
     # 답 선택 직후 자동 저장 (DB 호출 많아질 수 있음)
-if sb_authed is not None:
+# ✅ 변경이 있었을 때만 1번 저장
+if sb_authed is not None and st.session_state.get("progress_dirty"):
     try:
         save_progress_to_db(sb_authed, user_id)
+        st.session_state.progress_dirty = False  # 저장했으니 dirty 끄기
     except Exception:
         pass
 
     st.divider()
+    def mark_progress_dirty():
+        st.session_state.progress_dirty = True
 
 # ============================================================
 # ✅ 제출/채점
