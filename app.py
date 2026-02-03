@@ -4,6 +4,7 @@ import pandas as pd
 import streamlit as st
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
+import time
 
 # ============================================================
 # ✅ Streamlit 기본 설정 (최상단)
@@ -98,13 +99,16 @@ import time
 def mark_progress_dirty():
     st.session_state.progress_dirty = True
 
-    # ✅ 로그인 상태 + authed client 있을 때만 저장
-    sb_authed_local = get_authed_sb()
+    # ✅ 로그인/토큰 없는 상태면 저장 불가
     u = st.session_state.get("user")
-    if (sb_authed_local is None) or (u is None):
+    if u is None:
         return
 
-    # ✅ 너무 자주 저장하지 않게 1.0초 쿨다운(원하면 0.3~2초로 조절)
+    sb_authed_local = get_authed_sb()
+    if sb_authed_local is None:
+        return
+
+    # ✅ 너무 자주 저장하지 않게(1초 쿨다운)
     now = time.time()
     last = st.session_state.get("_last_progress_save_ts", 0.0)
     if now - last < 1.0:
@@ -112,12 +116,11 @@ def mark_progress_dirty():
 
     try:
         save_progress_to_db(sb_authed_local, u.id)
-        st.session_state._last_progress_save_ts = now
+        st.session_state["_last_progress_save_ts"] = now
         st.session_state.progress_dirty = False
     except Exception:
-        # 저장 실패해도 앱 흐름은 유지
+        # 저장 실패해도 퀴즈 진행은 계속되게
         pass
-
 
 # ============================================================
 # ✅ (핵심) 퀴즈 상태를 "시험 시작 전"으로 한 방에 세팅
@@ -133,9 +136,11 @@ def start_quiz_state(quiz_list: list, qtype: str, clear_wrongs: bool = True):
     st.session_state.saved_this_attempt = False
     st.session_state.stats_saved_this_attempt = False
     st.session_state.session_stats_applied_this_attempt = False
-
+    st.session_state.progress_cleared_this_attempt = False
     if clear_wrongs:
         st.session_state.wrong_list = []
+
+    st.session_state.progress_dirty = True
 
 # ============================================================
 # ✅ 유틸: JWT 만료 감지 + 세션 갱신 + DB 호출 래퍼
@@ -1307,6 +1312,7 @@ if st.session_state.submitted:
     if sb_authed_local is None:
         st.warning("DB 저장/조회용 토큰이 없습니다. 다시 로그인해 주세요.")
     else:
+        # 1) attempt 저장
         if not st.session_state.saved_this_attempt:
             def _save():
                 return save_attempt_to_db(
@@ -1326,6 +1332,7 @@ if st.session_state.submitted:
                 st.warning("DB 저장에 실패했습니다. (테이블/컬럼/권한/RLS 정책 확인 필요)")
                 st.write(str(e))
 
+        # 2) stats 저장
         if not st.session_state.stats_saved_this_attempt:
             def _save_stats():
                 return save_word_stats_via_rpc(
@@ -1341,6 +1348,15 @@ if st.session_state.submitted:
             except Exception:
                 st.caption("※ 단어 통계(stats) 저장이 실패했습니다. (RPC/권한/RLS 확인 필요)")
 
+        # 3) ✅ progress 삭제 (stats if 바깥!)
+        if not st.session_state.get("progress_cleared_this_attempt", False):
+            try:
+                sb_authed_local2 = get_authed_sb()
+                if sb_authed_local2 is not None:
+                    clear_progress_in_db(sb_authed_local2, user_id)
+                st.session_state.progress_cleared_this_attempt = True
+            except Exception:
+               pass
         st.subheader("📌 내 최근 기록")
 
         def _fetch_hist():
