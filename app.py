@@ -150,6 +150,9 @@ def start_quiz_state(quiz_list: list, qtype: str, clear_wrongs: bool = True):
 
     st.session_state.progress_dirty = True
 
+    # ✅ 추가: 새 퀴즈를 만든 순간 바로 DB에 저장하도록 “강제 저장” 플래그
+    st.session_state.force_progress_save = True
+    st.session_state.last_progress_save_ts = 0.0  # 즉시 저장되도록
 # ============================================================
 # ✅ 유틸: JWT 만료 감지 + 세션 갱신 + DB 호출 래퍼
 # ============================================================
@@ -1274,18 +1277,31 @@ import time
 
 if "last_progress_save_ts" not in st.session_state:
     st.session_state.last_progress_save_ts = 0.0
+if "force_progress_save" not in st.session_state:
+    st.session_state.force_progress_save = False
 
-if st.session_state.get("progress_dirty", False) and not st.session_state.get("submitted", False):
+need_save = (
+    (st.session_state.get("progress_dirty", False) or st.session_state.get("force_progress_save", False))
+    and not st.session_state.get("submitted", False)
+)
+
+if need_save:
     sb_authed_local = get_authed_sb()
 
     if sb_authed_local is not None:
         now = time.time()
 
-        if now - float(st.session_state.last_progress_save_ts) >= 0.8:
+        # ✅ 강제 저장이면 throttle 무시
+        can_save = st.session_state.get("force_progress_save", False) or (
+            now - float(st.session_state.last_progress_save_ts) >= 0.8
+        )
+
+        if can_save:
             try:
                 save_progress_to_db(sb_authed_local, user_id)
                 st.session_state.last_progress_save_ts = now
                 st.session_state.progress_dirty = False
+                st.session_state.force_progress_save = False   # ✅ 강제 저장 해제
             except Exception as e:
                 st.caption(f"progress 자동저장 실패(무시): {e}")
     else:
