@@ -101,6 +101,7 @@ def start_quiz_state(quiz_list: list, qtype: str, clear_wrongs: bool = True):
     st.session_state.quiz_version = int(st.session_state.get("quiz_version", 0)) + 1
 
     st.session_state.quiz_type = qtype
+    st.session_state.quiz = quiz  
     st.session_state.quiz = quiz_list
     st.session_state.answers = [None] * len(quiz_list)
 
@@ -1205,6 +1206,8 @@ col1, col2 = st.columns(2)
 with col1:
     if st.button("🔄 새 문제(랜덤 10문항)", use_container_width=True, key="btn_new_quiz"):
         clear_question_widget_keys()
+        # ✅ 핵심: 위젯 key 강제 변경
+        st.session_state.quiz_version = st.session_state.get("quiz_version", 0) + 1
         new_quiz = build_quiz(st.session_state.quiz_type)
         st.session_state.resume_dirty = True
         st.rerun()
