@@ -12,6 +12,7 @@ cookies = EncryptedCookieManager(
 if not cookies.ready():
     st.stop()
 
+st.write("DEBUG session_state keys:", list(st.session_state.keys()))
 
 # ============================================================
 # ✅ Streamlit 기본 설정 (반드시 가장 위, 첫 st.* 호출)
