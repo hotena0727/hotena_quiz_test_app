@@ -32,12 +32,14 @@ st.title("い형용사 퀴즈")
 # ============================================================
 # ✅ Cookies
 # ============================================================
-cookies = EncryptedCookieManager(
-    prefix="hatena_jlpt/",
-    password=st.secrets.get("COOKIE_PASSWORD", "change-me-please"),
-)
+cookie_pw = st.secrets.get("COOKIE_PASSWORD")
+if not cookie_pw:
+    st.error("COOKIE_PASSWORD가 설정되지 않았습니다.")
+    st.stop()
+
+cookies = EncryptedCookieManager(prefix="hatena_jlpt/", password=cookie_pw)
+
 if not cookies.ready():
-    st.info("쿠키를 초기화하는 중입니다… 잠시 후 자동으로 다시 시도됩니다.")
     st.stop()
 
 # ============================================================
@@ -95,21 +97,24 @@ def clear_question_widget_keys():
 # ✅ (핵심) 퀴즈 상태를 "시험 시작 전"으로 한 방에 세팅
 #    - 어떤 버튼/상황에서도 이 함수만 부르면 일관되게 초기화됨
 # ============================================================
-def start_quiz_state(quiz_list: list, qtype: str, clear_wrongs: bool = True):
-    # quiz_version 기본값 보장
-    st.session_state.quiz_version = int(st.session_state.get("quiz_version", 0)) + 1
-
-    st.session_state.quiz_type = qtype
-    st.session_state.quiz = quiz_list
-    st.session_state.answers = [None] * len(quiz_list)
-
+def start_quiz_state(new_quiz, quiz_type, clear_wrongs=True):
+    st.session_state.quiz_type = quiz_type
+    st.session_state.quiz = new_quiz
     st.session_state.submitted = False
+
+    st.session_state.answers = [None] * len(new_quiz)
+
     st.session_state.saved_this_attempt = False
     st.session_state.stats_saved_this_attempt = False
     st.session_state.session_stats_applied_this_attempt = False
+    st.session_state.inprogress_deleted_this_attempt = False
 
     if clear_wrongs:
         st.session_state.wrong_list = []
+
+    # ✅ 위젯 키 충돌 방지 (세션 기준으로만 증가)
+    st.session_state.quiz_version = int(st.session_state.get("quiz_version", 0)) + 1
+    clear_question_widget_keys()
 
 # ============================================================
 # ✅ 유틸: JWT 만료 감지 + 세션 갱신 + DB 호출 래퍼
@@ -188,6 +193,11 @@ def run_db(callable_fn):
         return callable_fn()
     except Exception as e:
         if is_jwt_expired_error(e):
+            if st.session_state.get("_handling_jwt_expired"):
+                clear_auth_everywhere()
+                st.warning("세션이 만료되었습니다. 다시 로그인해 주세요.")
+                st.stop()
+            st.session_state["_handling_jwt_expired"] = True
             ok = refresh_session_from_cookie_if_needed(force=True)
             if ok:
                 st.rerun()
@@ -196,9 +206,15 @@ def run_db(callable_fn):
             st.rerun()
         raise
 
-def to_kst_naive(series_or_value):
-    ts = pd.to_datetime(series_or_value, utc=True, errors="coerce")
-    return ts.dt.tz_convert(KST_TZ).dt.tz_localize(None)
+
+def to_kst_naive(x):
+    ts = pd.to_datetime(x, utc=True, errors="coerce")
+    if isinstance(ts, pd.Series):
+        return ts.dt.tz_convert(KST_TZ).dt.tz_localize(None)
+    if pd.isna(ts):
+        return ts
+    return ts.tz_convert(KST_TZ).tz_localize(None)
+
 
 # ============================================================
 # ✅ DB 함수
@@ -284,7 +300,33 @@ def save_word_stats_via_rpc(sb_authed, quiz: list[dict], answers: list, quiz_typ
                 "p_is_correct": bool(is_correct),
             },
         ).execute()
+# ============================================================
+# ✅ 진행중 퀴즈 저장/불러오기/삭제 (quiz_in_progress)
+# ============================================================
+def upsert_quiz_in_progress(sb_authed, user_id: str, level: str, quiz_type: str, quiz: list, answers: list, quiz_version: int):
+    payload = {
+        "user_id": user_id,
+        "level": level,
+        "quiz_type": quiz_type,
+        "quiz": quiz,
+        "answers": answers,
+        "quiz_version": int(quiz_version),
+    }
+    sb_authed.table("quiz_in_progress").upsert(payload, on_conflict="user_id, level, quiz_type").execute()
 
+
+def fetch_quiz_in_progress(sb_authed, user_id: str):
+    return (
+        sb_authed.table("quiz_in_progress")
+        .select("level, quiz_type, quiz, answers, quiz_version, updated_at")
+        .eq("user_id", user_id)
+        .maybe_single()
+        .execute()
+    )
+
+
+def delete_quiz_in_progress(sb_authed, user_id: str):
+    sb_authed.table("quiz_in_progress").delete().eq("user_id", user_id).execute()
 # ============================================================
 # ✅ Admin 설정 (DB ONLY)
 # ============================================================
@@ -856,6 +898,49 @@ if len(pool_i) < N:
     st.error(f"い형용사 단어가 부족합니다: pool={len(pool_i)}")
     st.stop()
 
+def try_restore_inprogress():
+    sb_authed_local = get_authed_sb()
+    u = st.session_state.get("user")
+    if sb_authed_local is None or u is None:
+        return False
+
+    try:
+        res = run_db(lambda: fetch_quiz_in_progress(sb_authed_local, u.id))
+    except Exception:
+        return False
+
+    if not res or not getattr(res, "data", None):
+        return False
+
+    data = res.data
+    quiz_list = data.get("quiz")
+    answers = data.get("answers") or []
+    qtype = data.get("quiz_type")
+
+    # 안전장치
+    if not quiz_list or qtype not in QUIZ_TYPES:
+        return False
+
+    st.session_state.quiz_type = qtype
+    st.session_state.quiz = quiz_list
+
+    # answers 길이 맞추기
+    if len(answers) != len(quiz_list):
+        answers = (answers + [None] * len(quiz_list))[: len(quiz_list)]
+    st.session_state.answers = answers
+
+    st.session_state.submitted = False
+    st.session_state.saved_this_attempt = False
+    st.session_state.stats_saved_this_attempt = False
+    st.session_state.session_stats_applied_this_attempt = False
+    st.session_state.wrong_list = []
+
+    # 위젯 키 충돌 방지: 버전 올리고 잔상 제거
+    st.session_state.quiz_version = int(data.get("quiz_version", 0) or 0)
+    clear_question_widget_keys()
+    return True
+
+
 # ============================================================
 # ✅ 퀴즈 로직
 # ============================================================
@@ -1015,6 +1100,8 @@ if "stats_saved_this_attempt" not in st.session_state:
     st.session_state.stats_saved_this_attempt = False
 if "session_stats_applied_this_attempt" not in st.session_state:
     st.session_state.session_stats_applied_this_attempt = False
+if "inprogress_deleted_this_attempt" not in st.session_state:
+    st.session_state.inprogress_deleted_this_attempt = False
 
 ensure_mastered_words_shape()
 
@@ -1024,6 +1111,12 @@ if "wrong_counter" not in st.session_state:
     st.session_state.wrong_counter = {}
 if "total_counter" not in st.session_state:
     st.session_state.total_counter = {}
+    
+if "restored_inprogress" not in st.session_state:
+    st.session_state.restored_inprogress = False
+
+if not st.session_state.restored_inprogress:
+    st.session_state.restored_inprogress = try_restore_inprogress()
 
 if "quiz" not in st.session_state:
     st.session_state.quiz = build_quiz(st.session_state.quiz_type)
@@ -1063,10 +1156,9 @@ with col1:
 
 with col2:
     if st.button("🧹 선택 초기화", use_container_width=True, key="btn_reset_choice"):
-        clear_question_widget_keys()
-        # 같은 퀴즈 유지, 답안만 초기화
         start_quiz_state(st.session_state.quiz, st.session_state.quiz_type, clear_wrongs=False)
         st.rerun()
+
 
 st.divider()
 
@@ -1084,6 +1176,30 @@ if st.button("✅ 맞힌 단어 제외 초기화", use_container_width=True, key
     st.success(f"초기화 완료 (유형: {quiz_label_map[st.session_state.quiz_type]})")
     st.rerun()
 
+def save_answer_to_db(idx: int):
+    sb_authed_local = get_authed_sb()
+    u = st.session_state.get("user")
+    if sb_authed_local is None or u is None:
+        return
+
+    key = f"q_{st.session_state.quiz_version}_{idx}"
+    val = st.session_state.get(key)
+    st.session_state.answers[idx] = val
+
+    try:
+        run_db(lambda: upsert_quiz_in_progress(
+            sb_authed_local,
+            user_id=u.id,
+            level=LEVEL,
+            quiz_type=st.session_state.quiz_type,
+            quiz=st.session_state.quiz,
+            answers=st.session_state.answers,
+            quiz_version=st.session_state.quiz_version,
+        ))
+    except Exception:
+        pass
+
+
 # ============================================================
 # ✅ answers 길이 자동 맞춤
 # ============================================================
@@ -1100,14 +1216,31 @@ for idx, q in enumerate(st.session_state.quiz):
         f'<div class="jp" style="font-size:18px; font-weight:500;">{q["prompt"]}</div>',
         unsafe_allow_html=True,
     )
+    radio_key = f"q_{st.session_state.quiz_version}_{idx}"
+
+    # 복원된 답이 있으면, 해당 보기의 index를 찾아 기본 선택으로 설정
+    saved = st.session_state.answers[idx]
+    if saved is None:
+        default_index = None
+    else:
+        try:
+            default_index = q["choices"].index(saved)
+        except ValueError:
+            default_index = None
+
     choice = st.radio(
-        label="보기",
-        options=q["choices"],
-        index=None,
-        key=f"q_{st.session_state.quiz_version}_{idx}",
-        label_visibility="collapsed",
-    )
+      label="보기",
+      options=q["choices"],
+      index=default_index,
+      key=radio_key,
+      label_visibility="collapsed",
+      on_change=save_answer_to_db,
+      args=(idx,),
+  )
+
+    # 세션에도 반영 (on_change가 못 도는 경우도 있으니)
     st.session_state.answers[idx] = choice
+
     st.divider()
 
 # ============================================================
@@ -1237,6 +1370,15 @@ if st.session_state.submitted:
         except Exception as e:
             st.info("기록을 불러오지 못했습니다.")
             st.write(str(e))
+
+    if not st.session_state.get("inprogress_deleted_this_attempt", False):
+        sb_authed_local2 = get_authed_sb()
+        if sb_authed_local2 is not None:
+            try:
+                run_db(lambda: delete_quiz_in_progress(sb_authed_local2, user_id))
+            except Exception:
+                pass
+        st.session_state.inprogress_deleted_this_attempt = True
 
     # 세션 누적(한 번만)
     if not st.session_state.session_stats_applied_this_attempt:
