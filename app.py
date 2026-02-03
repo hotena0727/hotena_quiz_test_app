@@ -1338,8 +1338,10 @@ if st.session_state.submitted:
             try:
                 run_db(_save_stats)
                 st.session_state.stats_saved_this_attempt = True
-            except Exception:
-                st.caption("※ 단어 통계(stats) 저장이 실패했습니다. (RPC/권한/RLS 확인 필요)")
+                st.success("✅ 단어 통계 저장 성공")
+            except Exception as e:
+                st.error("❌ 단어 통계 저장 실패 (아래 에러가 진짜 원인입니다)")
+                st.exception(e)  # ← 이게 핵심 (원인을 숨기지 않음)
 
         st.subheader("📌 내 최근 기록")
 
