@@ -311,9 +311,9 @@ require_login()
 user = st.session_state.user
 user_id = user.id
 
-st.write("✅ 세션 user:", user.email if hasattr(user, "email") else user)
-st.write("✅ access_token 있음?", bool(st.session_state.get("access_token")))
-st.write("✅ sb_authed 생성됨?", sb_authed is not None)
+st.write("token 있음?", bool(st.session_state.get("access_token")))
+st.write("sb_authed None?", sb_authed is None)
+st.write("user_id:", user_id)
 
 
 # RLS용 클라이언트 (있을 수도/없을 수도)
@@ -503,6 +503,24 @@ if selected != st.session_state.pos_mode:
     st.session_state.saved_this_attempt = False
     st.session_state.quiz_version += 1
     st.rerun()
+
+st.divider()
+if st.button("🧪 RPC 테스트(1회)"):
+    sb_authed = get_authed_sb()
+    st.write("sb_authed:", sb_authed is not None)
+    try:
+        sb_authed.rpc("record_word_result", {
+            "p_word_key": "TEST_WORD",
+            "p_level": LEVEL,
+            "p_pos": "i_adj",
+            "p_quiz_type": "debug",
+            "p_is_correct": True
+        }).execute()
+        st.success("✅ RPC 호출 성공")
+    except Exception as e:
+        st.error("❌ RPC 호출 실패")
+        st.exception(e)
+
 
 st.caption(f"현재 선택: **{mode_label_map[st.session_state.pos_mode]}**")
 st.divider()
