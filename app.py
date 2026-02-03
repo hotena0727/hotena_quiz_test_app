@@ -363,7 +363,6 @@ def save_word_stats_via_rpc(sb_authed, quiz: list[dict], answers: list, quiz_typ
 def save_progress_to_db(sb_authed, user_id: str):
     if "quiz" not in st.session_state or "answers" not in st.session_state:
         return
-
     payload = {
         "quiz_type": st.session_state.get("quiz_type"),
         "quiz_version": int(st.session_state.get("quiz_version", 0) or 0),
@@ -1175,9 +1174,11 @@ if "total_counter" not in st.session_state:
     st.session_state.total_counter = {}
 
 if "quiz" not in st.session_state or not isinstance(st.session_state.quiz, list) or len(st.session_state.quiz) == 0:
-    # progress 복원이 끝났는데도(=progress_restored True) 퀴즈가 없다면 그때만 새로 생성
     if st.session_state.get("progress_restored", False):
-        st.session_state.quiz = build_quiz(st.session_state.quiz_type)
+        clear_question_widget_keys()  # 잔상 제거(안전)
+        new_quiz = build_quiz(st.session_state.quiz_type)
+        start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
+        st.rerun()
     else:
         st.info("진행 상태를 복원 중입니다…")
         st.stop()
@@ -1233,13 +1234,6 @@ if st.button("✅ 맞힌 단어 제외 초기화", use_container_width=True, key
     st.rerun()
 
 # ============================================================
-# ✅ answers 길이 자동 맞춤
-# ============================================================
-quiz_len = len(st.session_state.quiz)
-if "answers" not in st.session_state or len(st.session_state.answers) != quiz_len:
-    st.session_state.answers = [None] * quiz_len
-
-# ============================================================
 # ✅ 문제 표시  (★ 새로고침/세션초기화 후에도 선택값 복원되게 수정)
 # ============================================================
 for idx, q in enumerate(st.session_state.quiz):
@@ -1274,43 +1268,50 @@ for idx, q in enumerate(st.session_state.quiz):
     st.session_state.answers[idx] = choice
 # ============================================================
 # ✅ (핵심) 제출 전에도 progress 자동 저장 (선택값 유지)
-#   - 라디오 변경 → mark_progress_dirty() → rerun
-#   - rerun 후 여기서 DB에 progress 저장
 # ============================================================
-import time
-
+# ============================================================
+# ✅ (핵심) 제출 전 progress 자동 저장 (선택값 유지)
+# ============================================================
 if "last_progress_save_ts" not in st.session_state:
     st.session_state.last_progress_save_ts = 0.0
 if "force_progress_save" not in st.session_state:
     st.session_state.force_progress_save = False
+
+now = time.time()
 
 need_save = (
     (st.session_state.get("progress_dirty", False) or st.session_state.get("force_progress_save", False))
     and not st.session_state.get("submitted", False)
 )
 
-if need_save:
-    sb_authed_local = get_authed_sb()
+# ✅ authed client를 여기서 다시 확보 (토큰 없는 상태면 저장 안 함)
+sb_authed_local = get_authed_sb()
 
-    if sb_authed_local is not None:
-        now = time.time()
+can_save = (
+    need_save
+    and sb_authed_local is not None
+    and (now - float(st.session_state.last_progress_save_ts or 0.0) >= 0.8)  # 0.8초 정도 쓰로틀
+)
 
-        # ✅ 강제 저장이면 throttle 무시
-        can_save = st.session_state.get("force_progress_save", False) or (
-            now - float(st.session_state.last_progress_save_ts) >= 0.8
-        )
+if can_save:
+    try:
+        # ✅ "최소 1개라도 답했을 때만 저장" 조건
+        answers = st.session_state.get("answers", [])
+        if not (isinstance(answers, list) and any(a is not None for a in answers)):
+            # 완전 공백이면 저장하지 않음
+            st.session_state.progress_dirty = False
+            st.session_state.force_progress_save = False
+        else:
+            save_progress_to_db(sb_authed_local, user_id)
 
-        if can_save:
-            try:
-                save_progress_to_db(sb_authed_local, user_id)
-                st.session_state.last_progress_save_ts = now
-                st.session_state.progress_dirty = False
-                st.session_state.force_progress_save = False   # ✅ 강제 저장 해제
-            except Exception as e:
-                st.caption(f"progress 자동저장 실패(무시): {e}")
-    else:
-        # 토큰 없으면 저장 못 함 → dirty는 유지(로그인 복구되면 저장될 수 있게)
-        pass
+            st.session_state.last_progress_save_ts = now
+            st.session_state.progress_dirty = False
+            st.session_state.force_progress_save = False
+
+    except Exception as e:
+        # 디버깅 끝나면 이 줄은 빼도 됩니다.
+        st.caption(f"progress 자동저장 실패(무시): {e}")
+        st.caption(f"DEBUG authed? {sb_authed_local is not None} / has_token? {bool(st.session_state.get('access_token'))}")
 
 # ============================================================
 # ✅ 제출/채점
