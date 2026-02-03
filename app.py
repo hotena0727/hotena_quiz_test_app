@@ -1235,10 +1235,10 @@ if "last_progress_save_ts" not in st.session_state:
 
 if st.session_state.get("progress_dirty", False) and not st.session_state.get("submitted", False):
     sb_authed_local = get_authed_sb()
-    
+
     if sb_authed_local is not None:
         now = time.time()
-        
+
         if now - float(st.session_state.last_progress_save_ts) >= 0.8:
             try:
                 save_progress_to_db(sb_authed_local, user_id)
@@ -1247,8 +1247,9 @@ if st.session_state.get("progress_dirty", False) and not st.session_state.get("s
             except Exception as e:
                 st.caption(f"progress 자동저장 실패(무시): {e}")
     else:
-    # 토큰 없으면 저장 못 함 → dirty는 유지(로그인 복구되면 저장될 수 있게)
+        # 토큰 없으면 저장 못 함 → dirty는 유지(로그인 복구되면 저장될 수 있게)
         pass
+
 # ============================================================
 # ✅ 제출/채점
 # ============================================================
