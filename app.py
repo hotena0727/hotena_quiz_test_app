@@ -12,6 +12,7 @@ cookies = EncryptedCookieManager(
 if not cookies.ready():
     st.stop()
 
+
 # ============================================================
 # ✅ Streamlit 기본 설정 (반드시 가장 위, 첫 st.* 호출)
 # ============================================================
@@ -312,7 +313,7 @@ user_id = user.id
 
 # ✅✅✅ (저장 관련) sb_authed는 쓰기 전에 먼저 만들어야 함
 sb_authed = get_authed_sb()
-st.write("DEBUG session_state keys:", list(st.session_state.keys()))
+
 st.write("token 있음?", bool(st.session_state.get("access_token")))
 st.write("sb_authed None?", sb_authed is None)
 st.write("user_id:", user_id)
@@ -507,33 +508,20 @@ if selected != st.session_state.pos_mode:
 st.divider()
 if st.button("🧪 RPC 테스트(1회)"):
     sb_authed = get_authed_sb()
-
-    st.write("token 있음?", bool(st.session_state.get("access_token")))
     st.write("sb_authed:", sb_authed is not None)
-
-    # ✅ 1) 토큰/클라이언트 없으면 여기서 즉시 종료
-    if sb_authed is None:
-        st.error("❌ sb_authed가 None입니다. (로그인 토큰 없이 RPC 호출하려는 상태)")
-        st.stop()
-
-    # ✅ 2) RPC 호출
     try:
-        sb_authed.rpc(
-            "record_word_result",
-            {
-                "p_word_key": "TEST_WORD",
-                "p_level": LEVEL,
-                "p_pos": "i_adj",
-                "p_quiz_type": "debug",
-                "p_is_correct": True,
-            },
-        ).execute()
+        sb_authed.rpc("record_word_result", {
+            "p_word_key": "TEST_WORD",
+            "p_level": LEVEL,
+            "p_pos": "i_adj",
+            "p_quiz_type": "debug",
+            "p_is_correct": True
+        }).execute()
         st.success("✅ RPC 호출 성공")
-
     except Exception as e:
-        # ✅ 3) 에러를 '전문'으로 보여줘야 원인 파악 가능
         st.error("❌ RPC 호출 실패")
-        st.exception(e)
+        st.write(getattr(e, "args", e))
+
 
 st.caption(f"현재 선택: **{mode_label_map[st.session_state.pos_mode]}**")
 st.divider()
@@ -597,16 +585,11 @@ if not all_answered:
     st.info("모든 문제에 답을 선택하면 제출 버튼이 활성화됩니다.")
 
 if st.session_state.submitted:
-
-    # 🔥 FIX 1: sb_authed를 여기서 먼저 확보 (가장 중요)
-    sb_authed = get_authed_sb()
-
-    if sb_authed is None:
-        st.error("❌ 인증된 Supabase 클라이언트를 가져오지 못했습니다.")
-        st.stop()
-
     score = 0
     wrong_list = []
+
+    # ✅✅✅ (저장 관련) 제출 시점에 sb_authed를 다시 확보(토큰 갱신/복구 대비)
+    sb_authed = get_authed_sb()
 
     for idx, q in enumerate(st.session_state.quiz):
         picked = st.session_state.answers[idx]
@@ -626,21 +609,19 @@ if st.session_state.submitted:
                 "뜻": q["meaning"],
             })
 
-        # 🔥 FIX 2: sb_authed가 보장된 상태에서만 RPC 호출
-        try:
-            sb_authed.rpc(
-                "record_word_result",
-                {
+        # ✅✅✅ (저장 관련) 여기서 단어 통계 RPC 기록 (문항별)
+        if sb_authed is not None:
+            try:
+                sb_authed.rpc("record_word_result", {
                     "p_word_key": q["jp_word"],
                     "p_level": LEVEL,
-                    "p_pos": q["pos"],
-                    "p_quiz_type": q.get("quiz_type", "adj_quiz"),
-                    "p_is_correct": is_correct,
-                }
-            ).execute()
-        except Exception as e:
-            st.error("❌ 단어 통계(stats) 저장 실패")
-            st.exception(e)
+                    "p_pos": q.get("pos", ""),
+                    "p_quiz_type": q.get("quiz_type", ""),  # ✅ reading/meaning
+                    "p_is_correct": bool(is_correct),
+                }).execute()
+            except Exception as e:
+                st.error("❌ 단어 통계(stats) 저장 실패했습니다. (RPC/권한/RLS 확인 필요)")
+                st.write(getattr(e, "args", e))
 
     st.session_state.wrong_list = wrong_list
     quiz_len = len(st.session_state.quiz)
