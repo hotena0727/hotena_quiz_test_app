@@ -1315,7 +1315,8 @@ if can_save:
             st.session_state.progress_dirty = False
             st.session_state.force_progress_save = False
             test = sb_authed_local.table("profiles").select("id").eq("id", user_id).limit(1).execute()
-st.caption(f"AUTH TEST OK: {bool(test.data)}")
+    except Exception as e:
+        st.caption(f"AUTH TEST FAIL: {e}")
 
 
     except Exception as e:
