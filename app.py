@@ -12,8 +12,6 @@ cookies = EncryptedCookieManager(
 if not cookies.ready():
     st.stop()
 
-st.write("DEBUG session_state keys:", list(st.session_state.keys()))
-
 # ============================================================
 # ✅ Streamlit 기본 설정 (반드시 가장 위, 첫 st.* 호출)
 # ============================================================
@@ -314,7 +312,7 @@ user_id = user.id
 
 # ✅✅✅ (저장 관련) sb_authed는 쓰기 전에 먼저 만들어야 함
 sb_authed = get_authed_sb()
-
+st.write("DEBUG session_state keys:", list(st.session_state.keys()))
 st.write("token 있음?", bool(st.session_state.get("access_token")))
 st.write("sb_authed None?", sb_authed is None)
 st.write("user_id:", user_id)
