@@ -465,23 +465,22 @@ def auth_box():
             try:
                 res = sb.auth.sign_in_with_password({"email": email, "password": pw})
 
-                # 1️⃣ user는 무조건 저장
                 st.session_state.user = res.user
                 st.session_state["login_email"] = email.strip()
 
-                # 2️⃣ 세션은 sb.auth.get_session()으로 다시 가져온다 (핵심)
-                sess = sb.auth.get_session()
-                if sess and sess.session and sess.session.access_token:
-                    st.session_state.access_token = sess.session.access_token
-                    st.session_state.refresh_token = sess.session.refresh_token
-      
-                    cookies["access_token"] = sess.session.access_token
-                    cookies["refresh_token"] = sess.session.refresh_token
+                if res.session and res.session.access_token:
+                    st.session_state.access_token = res.session.access_token
+                    st.session_state.refresh_token = res.session.refresh_token
+
+                    cookies["access_token"] = res.session.access_token
+                    cookies["refresh_token"] = res.session.refresh_token
                     cookies.save()
                 else:
-                    st.error("로그인은 되었지만 access_token을 가져오지 못했습니다.")
-                    st.stop()
+                    st.warning("로그인은 되었지만 세션 토큰이 없습니다. 이메일 인증 상태를 확인해주세요.")
+                    st.session_state.access_token = None
+                    st.session_state.refresh_token = None
 
+                st.session_state.pop("is_admin_cached", None)
                 st.success("로그인 완료!")
                 st.rerun()
 
