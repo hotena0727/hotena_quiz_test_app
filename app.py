@@ -93,8 +93,31 @@ def clear_question_widget_keys():
     for k in keys_to_del:
         st.session_state.pop(k, None)
 
+import time
+
 def mark_progress_dirty():
     st.session_state.progress_dirty = True
+
+    # ✅ 로그인 상태 + authed client 있을 때만 저장
+    sb_authed_local = get_authed_sb()
+    u = st.session_state.get("user")
+    if (sb_authed_local is None) or (u is None):
+        return
+
+    # ✅ 너무 자주 저장하지 않게 1.0초 쿨다운(원하면 0.3~2초로 조절)
+    now = time.time()
+    last = st.session_state.get("_last_progress_save_ts", 0.0)
+    if now - last < 1.0:
+        return
+
+    try:
+        save_progress_to_db(sb_authed_local, u.id)
+        st.session_state._last_progress_save_ts = now
+        st.session_state.progress_dirty = False
+    except Exception:
+        # 저장 실패해도 앱 흐름은 유지
+        pass
+
 
 # ============================================================
 # ✅ (핵심) 퀴즈 상태를 "시험 시작 전"으로 한 방에 세팅
