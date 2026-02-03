@@ -97,11 +97,8 @@ def clear_question_widget_keys():
 #    - 어떤 버튼/상황에서도 이 함수만 부르면 일관되게 초기화됨
 # ============================================================
 def start_quiz_state(quiz_list: list, qtype: str, clear_wrongs: bool = True):
-    # quiz_version 기본값 보장
     st.session_state.quiz_version = int(st.session_state.get("quiz_version", 0)) + 1
-
     st.session_state.quiz_type = qtype
-    st.session_state.quiz = quiz  
     st.session_state.quiz = quiz_list
     st.session_state.answers = [None] * len(quiz_list)
 
@@ -1206,12 +1203,14 @@ col1, col2 = st.columns(2)
 with col1:
     if st.button("🔄 새 문제(랜덤 10문항)", use_container_width=True, key="btn_new_quiz"):
         clear_question_widget_keys()
-        # ✅ 핵심: 위젯 key 강제 변경
-        st.session_state.quiz_version = st.session_state.get("quiz_version", 0) + 1
+
+        if sb_authed is not None:
+            clear_quiz_session(sb_authed, user_id)  # ✅ 진행중 세션 삭제(선택이지만 추천)
+
         new_quiz = build_quiz(st.session_state.quiz_type)
-        st.session_state.resume_dirty = True
-        st.rerun()
         start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
+
+        st.session_state.resume_dirty = True
         st.rerun()
 
 with col2:
