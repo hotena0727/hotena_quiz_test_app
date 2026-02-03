@@ -1186,7 +1186,7 @@ if "answers" not in st.session_state or len(st.session_state.answers) != quiz_le
     st.session_state.answers = [None] * quiz_len
 
 # ============================================================
-# ✅ 문제 표시
+# ✅ 문제 표시  (★ 새로고침/세션초기화 후에도 선택값 복원되게 수정)
 # ============================================================
 for idx, q in enumerate(st.session_state.quiz):
     st.subheader(f"Q{idx+1}")
@@ -1194,23 +1194,30 @@ for idx, q in enumerate(st.session_state.quiz):
         f'<div class="jp" style="font-size:18px; font-weight:500;">{q["prompt"]}</div>',
         unsafe_allow_html=True,
     )
+
+    widget_key = f"q_{st.session_state.quiz_version}_{idx}"
+
+    # ✅ DB에서 복원된 answers를 "라디오 기본 선택값"으로 반영
+    prev = st.session_state.answers[idx]  # 복원되었을 수도 있는 값
+    default_index = None
+    if prev is not None and prev in q["choices"]:
+        default_index = q["choices"].index(prev)
+
+        # (선택) key 자체가 없을 때만 세션에도 박아주면 더 안전
+        if widget_key not in st.session_state:
+            st.session_state[widget_key] = prev
+
     choice = st.radio(
         label="보기",
         options=q["choices"],
-        index=None,
-        key=f"q_{st.session_state.quiz_version}_{idx}",
+        index=default_index,      # ★ 여기가 핵심
+        key=widget_key,
         label_visibility="collapsed",
-        on_change=mark_progress_dirty
+        on_change=mark_progress_dirty,
     )
-    st.session_state.answers[idx] = choice
 
-# ✅ 변경이 있었을 때만 1번 저장
-if sb_authed is not None and st.session_state.get("progress_dirty"):
-    try:
-        save_progress_to_db(sb_authed, user_id)
-        st.session_state.progress_dirty = False
-    except Exception:
-        pass
+    # ✅ 이제 choice가 None으로 덮어쓰는 일이 거의 없어짐
+    st.session_state.answers[idx] = choice
 
 # ============================================================
 # ✅ 제출/채점
