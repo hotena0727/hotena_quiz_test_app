@@ -2,6 +2,7 @@ from pathlib import Path
 import random
 import pandas as pd
 import streamlit as st
+
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
 
@@ -264,6 +265,102 @@ def fetch_is_admin_from_db(sb_authed, user_id):
     except Exception:
         pass
     return False
+
+import json
+import time
+
+# ============================================================
+# ✅ 진행중 퀴즈 세션(이어풀기) 저장/로드/삭제
+#    - quiz_sessions: user_id(PK), level, quiz_type, quiz(jsonb), answers(jsonb), submitted(bool)
+# ============================================================
+
+def load_quiz_session(sb_authed, user_id: str):
+    """
+    DB에 저장된 진행중 퀴즈를 로드.
+    반환: dict 또는 None
+    """
+    def _load():
+        return (
+            sb_authed.table("quiz_sessions")
+            .select("level, quiz_type, quiz, answers, submitted, updated_at")
+            .eq("user_id", user_id)
+            .single()
+            .execute()
+        )
+
+    try:
+        res = run_db(_load)
+        return res.data if res and getattr(res, "data", None) else None
+    except Exception:
+        return None
+
+
+def save_quiz_session(sb_authed, user_id: str, level: str, quiz_type: str, quiz: list, answers: list, submitted: bool):
+    """
+    진행중 상태를 upsert 저장.
+    """
+    payload = {
+        "user_id": user_id,
+        "level": level,
+        "quiz_type": quiz_type,
+        "quiz": quiz,          # list[dict] 그대로 jsonb로 저장
+        "answers": answers,    # list 그대로 jsonb로 저장
+        "submitted": bool(submitted),
+    }
+
+    def _save():
+        return sb_authed.table("quiz_sessions").upsert(payload, on_conflict="user_id").execute()
+
+    return run_db(_save)
+
+
+def clear_quiz_session(sb_authed, user_id: str):
+    """
+    진행중 세션 삭제(새로 풀기/완료 후 초기화에 사용)
+    """
+    def _del():
+        return sb_authed.table("quiz_sessions").delete().eq("user_id", user_id).execute()
+
+    try:
+        return run_db(_del)
+    except Exception:
+        return None
+
+
+# ============================================================
+# ✅ 자동저장(너무 자주 저장되지 않도록 throttle)
+# ============================================================
+def autosave_if_needed(sb_authed, user_id: str):
+    """
+    st.session_state에 dirty 플래그가 켜졌을 때만 저장.
+    최소 간격(초) 이하이면 스킵.
+    """
+    if sb_authed is None:
+        return
+    if not st.session_state.get("resume_dirty", False):
+        return
+
+    now = time.time()
+    last = float(st.session_state.get("resume_last_save_ts", 0.0))
+    if now - last < 1.2:  # 1.2초 이내 연속 저장 방지
+        return
+
+    try:
+        save_quiz_session(
+            sb_authed=sb_authed,
+            user_id=user_id,
+            level=LEVEL,
+            quiz_type=st.session_state.get("quiz_type"),
+            quiz=st.session_state.get("quiz", []),
+            answers=st.session_state.get("answers", []),
+            submitted=st.session_state.get("submitted", False),
+        )
+        st.session_state.resume_last_save_ts = now
+        st.session_state.resume_dirty = False
+    except Exception:
+        # 저장 실패는 조용히 무시 (UX 유지)
+        pass
+
 
 def save_word_stats_via_rpc(sb_authed, quiz: list[dict], answers: list, quiz_type: str, level: str):
     for idx, q in enumerate(quiz):
@@ -546,6 +643,56 @@ user_id = user.id
 user_email = getattr(user, "email", None) or st.session_state.get("login_email")
 
 sb_authed = get_authed_sb()
+# ============================================================
+# ✅ 이어풀기: DB에 진행중 세션이 있으면 복원 여부 선택
+# ============================================================
+if "resume_checked" not in st.session_state:
+    st.session_state.resume_checked = False
+
+if not st.session_state.resume_checked:
+    st.session_state.resume_checked = True
+
+    if sb_authed is not None:
+        saved = load_quiz_session(sb_authed, user_id)
+
+        # 저장된 세션이 있고, 레벨이 현재 LEVEL과 일치하면 복원 후보
+        if saved and saved.get("level") == LEVEL:
+            st.info("📌 진행 중인 퀴즈가 저장되어 있습니다. 이어서 풀까요?")
+            cA, cB = st.columns(2)
+
+            with cA:
+                if st.button("▶️ 이어서 풀기", use_container_width=True, key="btn_resume_yes"):
+                    # 위젯 잔상 제거 + 복원
+                    clear_question_widget_keys()
+
+                    restored_quiz = saved.get("quiz") or []
+                    restored_answers = saved.get("answers") or []
+                    restored_type = saved.get("quiz_type") or st.session_state.get("quiz_type", "reading")
+                    restored_submitted = bool(saved.get("submitted", False))
+
+                    # quiz_version 증가(키 충돌 방지)
+                    st.session_state.quiz_version = int(st.session_state.get("quiz_version", 0)) + 1
+
+                    st.session_state.quiz_type = restored_type
+                    st.session_state.quiz = restored_quiz
+                    st.session_state.answers = restored_answers
+                    st.session_state.submitted = restored_submitted
+
+                    # 이어풀기 상태이므로 오답노트는 일단 유지/미유지는 취향인데,
+                    # 보통 진행중 복원에는 wrong_list 비우는 게 안전
+                    st.session_state.wrong_list = []
+                    st.session_state.saved_this_attempt = False
+                    st.session_state.stats_saved_this_attempt = False
+                    st.session_state.session_stats_applied_this_attempt = False
+
+                    st.rerun()
+
+            with cB:
+                if st.button("🧹 새로 시작(저장 삭제)", use_container_width=True, key="btn_resume_no"):
+                    clear_quiz_session(sb_authed, user_id)
+                    st.rerun()
+
+
 if sb_authed is not None:
     ensure_profile(sb_authed, user)
 
@@ -1047,6 +1194,7 @@ if selected != st.session_state.quiz_type:
     clear_question_widget_keys()
     new_quiz = build_quiz(selected)
     start_quiz_state(new_quiz, selected, clear_wrongs=True)
+    st.session_state.resume_dirty = True
     st.rerun()
 
 st.caption(f"현재 선택: **{quiz_label_map[st.session_state.quiz_type]}**")
@@ -1058,6 +1206,8 @@ with col1:
     if st.button("🔄 새 문제(랜덤 10문항)", use_container_width=True, key="btn_new_quiz"):
         clear_question_widget_keys()
         new_quiz = build_quiz(st.session_state.quiz_type)
+        st.session_state.resume_dirty = True
+        st.rerun()
         start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
         st.rerun()
 
@@ -1107,8 +1257,15 @@ for idx, q in enumerate(st.session_state.quiz):
         key=f"q_{st.session_state.quiz_version}_{idx}",
         label_visibility="collapsed",
     )
+    prev = st.session_state.answers[idx]
     st.session_state.answers[idx] = choice
+
+    if choice != prev:
+        st.session_state.resume_dirty = True
     st.divider()
+
+# ✅ 자동 저장 실행(필요할 때만)
+autosave_if_needed(sb_authed, user_id)
 
 # ============================================================
 # ✅ 제출/채점
@@ -1190,6 +1347,8 @@ if st.session_state.submitted:
             try:
                 run_db(_save)
                 st.session_state.saved_this_attempt = True
+                # ✅ 제출 완료 후에는 이어풀기 세션 삭제(권장)
+                clear_quiz_session(sb_authed_local, user_id)
             except Exception as e:
                 st.warning("DB 저장에 실패했습니다. (테이블/컬럼/권한/RLS 정책 확인 필요)")
                 st.write(str(e))
