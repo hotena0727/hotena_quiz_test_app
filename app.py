@@ -1,11 +1,9 @@
-from supabase import ClientOptions
 from pathlib import Path
 import random
 import pandas as pd
 import streamlit as st
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
-import time
 
 # ============================================================
 # ✅ Streamlit 기본 설정 (최상단)
@@ -35,48 +33,12 @@ st.title("い형용사 퀴즈")
 # ✅ Cookies
 # ============================================================
 cookies = EncryptedCookieManager(
-    prefix="hatena_jlpt_",   # ✅ 슬래시 제거
-    password=st.secrets["COOKIE_PASSWORD"],  # ✅ 가능하면 secrets에 고정
+    prefix="hatena_jlpt/",
+    password=st.secrets.get("COOKIE_PASSWORD", "change-me-please"),
 )
 if not cookies.ready():
     st.info("쿠키를 초기화하는 중입니다… 잠시 후 자동으로 다시 시도됩니다.")
     st.stop()
-
-if st.session_state.get("is_admin_cached") is True:
-    st.caption(f"cookie refresh_token exists? {bool(cookies.get('refresh_token'))}")
-
-# ============================================================
-# ✅ (추가) 이메일 링크(query_params)로 들어온 토큰을 쿠키/세션에 주입
-# ============================================================
-def ingest_tokens_from_query_params():
-    qp = st.query_params
-
-    at = qp.get("access_token")
-    rt = qp.get("refresh_token")
-
-    # Streamlit query_params는 값이 list처럼 올 때도 있어서 안전 처리
-    if isinstance(at, list): at = at[0] if at else None
-    if isinstance(rt, list): rt = rt[0] if rt else None
-
-    if at:
-        st.session_state.access_token = at
-        cookies["access_token"] = at
-
-    if rt:
-        st.session_state.refresh_token = rt
-        cookies["refresh_token"] = rt
-
-    if at or rt:
-        cookies.save()
-        # 링크 재진입 시 반복 주입 방지 + URL 정리
-        try:
-            st.query_params.clear()
-        except Exception:
-            pass
-
-# ✅ 쿠키 준비된 뒤 1회 실행
-ingest_tokens_from_query_params()
-
 
 # ============================================================
 # ✅ Supabase 연결
@@ -128,13 +90,13 @@ def clear_question_widget_keys():
     keys_to_del = [k for k in list(st.session_state.keys()) if isinstance(k, str) and k.startswith("q_")]
     for k in keys_to_del:
         st.session_state.pop(k, None)
-def mark_progress_dirty():
-    st.session_state.progress_dirty = True
 
 # ============================================================
 # ✅ (핵심) 퀴즈 상태를 "시험 시작 전"으로 한 방에 세팅
+#    - 어떤 버튼/상황에서도 이 함수만 부르면 일관되게 초기화됨
 # ============================================================
 def start_quiz_state(quiz_list: list, qtype: str, clear_wrongs: bool = True):
+    # quiz_version 기본값 보장
     st.session_state.quiz_version = int(st.session_state.get("quiz_version", 0)) + 1
 
     st.session_state.quiz_type = qtype
@@ -145,15 +107,10 @@ def start_quiz_state(quiz_list: list, qtype: str, clear_wrongs: bool = True):
     st.session_state.saved_this_attempt = False
     st.session_state.stats_saved_this_attempt = False
     st.session_state.session_stats_applied_this_attempt = False
-    st.session_state.progress_cleared_this_attempt = False
+
     if clear_wrongs:
         st.session_state.wrong_list = []
 
-    st.session_state.progress_dirty = True
-
-    # ✅ 추가: 새 퀴즈를 만든 순간 바로 DB에 저장하도록 “강제 저장” 플래그
-    st.session_state.force_progress_save = True
-    st.session_state.last_progress_save_ts = 0.0  # 즉시 저장되도록
 # ============================================================
 # ✅ 유틸: JWT 만료 감지 + 세션 갱신 + DB 호출 래퍼
 # ============================================================
@@ -182,65 +139,37 @@ def clear_auth_everywhere():
         "is_admin_cached",
         "session_stats_applied_this_attempt",
         "mastered_words",
-        "progress_restored",
     ]:
         st.session_state.pop(k, None)
 
-# ============================================================
-# ✅✅✅ (로그인 유지/새로고침 복원) 최소 수정 핵심
-#   1) refresh_token으로 refresh_session 시도
-#   2) 실패하면 access_token으로 get_user 시도 (새로고침 대비)
-# ============================================================
 def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
-    # 이미 세션 살아있으면 통과
     if not force and st.session_state.get("user") and st.session_state.get("access_token"):
         return True
 
     rt = cookies.get("refresh_token")
-    at = cookies.get("access_token")
+    if not rt:
+        return False
 
-    # 1) refresh_token이 있으면 우선 refresh 시도
-    if rt:
-        try:
-            refreshed = sb.auth.refresh_session(rt)
-            if refreshed and refreshed.session and refreshed.session.access_token:
-                st.session_state.user = refreshed.user
-                st.session_state.access_token = refreshed.session.access_token
-                st.session_state.refresh_token = refreshed.session.refresh_token
+    try:
+        refreshed = sb.auth.refresh_session(rt)
+        if not refreshed or not refreshed.session:
+            return False
 
-                u_email = getattr(refreshed.user, "email", None)
-                if u_email:
-                    st.session_state["login_email"] = u_email.strip()
+        st.session_state.user = refreshed.user
+        st.session_state.access_token = refreshed.session.access_token
+        st.session_state.refresh_token = refreshed.session.refresh_token
 
-                cookies["access_token"] = refreshed.session.access_token
-                cookies["refresh_token"] = refreshed.session.refresh_token
-                cookies.save()
-                return True
-        except Exception:
-            # refresh 실패 시 2) access_token으로 user 조회 fallback
-            pass
+        u_email = getattr(refreshed.user, "email", None)
+        if u_email:
+            st.session_state["login_email"] = u_email.strip()
 
-    # 2) refresh가 없거나 실패했을 때 access_token으로 user 복원 시도
-    if at:
-        try:
-            u = sb.auth.get_user(at)
-            # supabase-py 버전에 따라 u.user / u.data 등 차이 있을 수 있어 안전하게 처리
-            user_obj = getattr(u, "user", None) or getattr(u, "data", None) or None
-            if user_obj:
-                st.session_state.user = user_obj
-                st.session_state.access_token = at
-                # refresh_token은 없을 수 있음 (있으면 세팅)
-                if rt:
-                    st.session_state.refresh_token = rt
+        cookies["access_token"] = refreshed.session.access_token
+        cookies["refresh_token"] = refreshed.session.refresh_token
+        cookies.save()
+        return True
 
-                u_email = getattr(user_obj, "email", None)
-                if u_email:
-                    st.session_state["login_email"] = u_email.strip()
-                return True
-        except Exception:
-            pass
-
-    return False
+    except Exception:
+        return False
 
 def get_authed_sb():
     if not st.session_state.get("access_token"):
@@ -250,14 +179,8 @@ def get_authed_sb():
     if not token:
         return None
 
-    # ✅ 가장 확실한 방법: ClientOptions로 Authorization 헤더를 강제로 박는다
-    sb2 = create_client(
-        SUPABASE_URL,
-        SUPABASE_ANON_KEY,
-        options=ClientOptions(
-            headers={"Authorization": f"Bearer {token}"}
-        )
-    )
+    sb2 = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    sb2.postgrest.auth(token)
     return sb2
 
 def run_db(callable_fn):
@@ -273,11 +196,9 @@ def run_db(callable_fn):
             st.rerun()
         raise
 
-def to_kst_naive(x):
-    ts = pd.to_datetime(x, utc=True, errors="coerce")
-    if hasattr(ts, "dt"):
-        return ts.dt.tz_convert(KST_TZ).dt.tz_localize(None)
-    return ts.tz_convert(KST_TZ).tz_localize(None) if ts is not pd.NaT else ts
+def to_kst_naive(series_or_value):
+    ts = pd.to_datetime(series_or_value, utc=True, errors="coerce")
+    return ts.dt.tz_convert(KST_TZ).dt.tz_localize(None)
 
 # ============================================================
 # ✅ DB 함수
@@ -363,61 +284,6 @@ def save_word_stats_via_rpc(sb_authed, quiz: list[dict], answers: list, quiz_typ
                 "p_is_correct": bool(is_correct),
             },
         ).execute()
-
-# ============================================================
-# ✅ Progress (DB 저장/복원)
-# ============================================================
-def save_progress_to_db(sb_authed, user_id: str):
-    if "quiz" not in st.session_state or "answers" not in st.session_state:
-        return
-    payload = {
-        "quiz_type": st.session_state.get("quiz_type"),
-        "quiz_version": int(st.session_state.get("quiz_version", 0) or 0),
-        "quiz": st.session_state.get("quiz"),
-        "answers": st.session_state.get("answers"),
-        "submitted": bool(st.session_state.get("submitted", False)),
-    }
-
-    sb_authed.table("profiles").upsert(
-        {"id": user_id, "progress": payload},
-        on_conflict="id",
-    ).execute()
-
-def clear_progress_in_db(sb_authed, user_id: str):
-    sb_authed.table("profiles").upsert(
-        {"id": user_id, "progress": None},
-        on_conflict="id",
-    ).execute()
-
-def restore_progress_from_db(sb_authed, user_id: str):
-    try:
-        res = (
-            sb_authed.table("profiles")
-            .select("progress")
-            .eq("id", user_id)
-            .single()
-            .execute()
-        )
-    except Exception:
-        return
-
-    if not res or not res.data:
-        return
-
-    progress = res.data.get("progress")
-    if not progress:
-        return
-
-    st.session_state.quiz_type = progress.get("quiz_type", st.session_state.get("quiz_type", "reading"))
-    st.session_state.quiz_version = int(progress.get("quiz_version", st.session_state.get("quiz_version", 0) or 0))
-    st.session_state.quiz = progress.get("quiz", st.session_state.get("quiz"))
-    st.session_state.answers = progress.get("answers", st.session_state.get("answers"))
-    st.session_state.submitted = bool(progress.get("submitted", st.session_state.get("submitted", False)))
-
-    if isinstance(st.session_state.quiz, list):
-        qlen = len(st.session_state.quiz)
-        if not isinstance(st.session_state.answers, list) or len(st.session_state.answers) != qlen:
-            st.session_state.answers = [None] * qlen
 
 # ============================================================
 # ✅ Admin 설정 (DB ONLY)
@@ -524,6 +390,7 @@ def auth_box():
 
         if st.button("회원가입", use_container_width=True, disabled=not (email_ok and pw_ok), key="btn_signup"):
             try:
+                import time
                 last = st.session_state.get("last_signup_ts", 0.0)
                 now = time.time()
                 if now - last < 8:
@@ -558,18 +425,10 @@ def auth_box():
                 st.stop()
 
 def require_login():
-    # user 없으면 로그인
     if st.session_state.get("user") is None:
         auth_box()
         st.stop()
 
-    # user는 있는데 토큰이 없으면: 쿠키로 복원 재시도 → 그래도 없으면 로그인 다시
-    if not st.session_state.get("access_token"):
-        ok = refresh_session_from_cookie_if_needed(force=True)
-        if not ok or not st.session_state.get("access_token"):
-            clear_auth_everywhere()
-            auth_box()
-            st.stop()
 # ============================================================
 # ✅ 네이버톡 배너 (제출 후만)
 # ============================================================
@@ -675,11 +534,10 @@ def render_naver_talk():
 # ============================================================
 # ✅ 앱 시작: refresh → 로그인 강제 → profile upsert → 출석 체크
 # ============================================================
-ok = refresh_session_from_cookie_if_needed(force=False)
+refresh_session_from_cookie_if_needed(force=False)
 
-if not ok and (cookies.get("refresh_token") or cookies.get("access_token")):
-    clear_auth_everywhere()
-    st.caption("세션 복원에 실패해서 로그인을 다시 요청합니다.")
+if "user" not in st.session_state:
+    st.session_state.user = None
 
 require_login()
 
@@ -688,30 +546,13 @@ user_id = user.id
 user_email = getattr(user, "email", None) or st.session_state.get("login_email")
 
 sb_authed = get_authed_sb()
-
-if "progress_restored" not in st.session_state:
-    st.session_state.progress_restored = False
-
 if sb_authed is not None:
-    if not st.session_state.get("progress_restored"):
-        try:
-            restore_progress_from_db(sb_authed, user_id)
-            st.session_state.progress_restored = True
-        except Exception as e:
-            st.warning("진행상태를 불러오는 중 네트워크가 불안정합니다. 연결이 안정되면 자동으로 이어집니다.")
-            st.caption(f"progress 복원 에러: {e}")
-            st.stop()
-
     ensure_profile(sb_authed, user)
 
     att = mark_attendance_once(sb_authed)
     if att:
         st.session_state["streak_count"] = int(att.get("streak_count", 0) or 0)
         st.session_state["did_attend_today"] = bool(att.get("did_attend", False))
-
-else:
-    st.caption("세션 토큰이 없습니다. (sb_authed=None) 다시 로그인해 주세요.")
-    st.stop()
 
 # ============================================================
 # ✅ 상단: 오늘의 목표(루틴) + 연속 출석 배지
@@ -1115,11 +956,13 @@ def build_quiz(qtype: str) -> list:
             (~base_pool["jp_word"].isin(mastered)) & (~base_pool["reading"].isin(mastered))
         ].copy()
 
+    # ✅ 모두 정복했을 때: "여기서 바로 초기화" / "오답만 다시 풀기" 제공
     if len(base_pool) < N:
         if len(base_pool) == 0:
             st.success("완벽합니다. 드디어 모두 정복했어요 ✅")
             st.info("복습/재도전을 원하시면 아래 버튼으로 **현재 유형만** 바로 운용할 수 있어요.")
 
+            # ✅ 여기서 바로 초기화(원클릭): mastered 비우고 새 시험 시작 상태로 고정
             if st.button("🧹 여기서 바로 초기화(원클릭)", use_container_width=True, key="btn_inline_reset_mastered"):
                 ensure_mastered_words_shape()
                 st.session_state.mastered_words[qtype] = set()
@@ -1128,6 +971,7 @@ def build_quiz(qtype: str) -> list:
                 start_quiz_state(new_quiz, qtype, clear_wrongs=True)
                 st.rerun()
 
+            # ✅ 오답만 다시 풀기: 오답으로 새 시험 시작 상태로 고정
             if st.button("❌ 오답만 다시 풀기", use_container_width=True, key="btn_inline_retry_wrongs"):
                 if not st.session_state.get("wrong_list"):
                     st.warning("현재 오답 노트가 비어 있어요. 🙂")
@@ -1147,7 +991,10 @@ def build_quiz(qtype: str) -> list:
 
     return [make_question(sampled.iloc[i], qtype, pool_i, pool) for i in range(len(sampled))]
 
+# ✅ reset 직후 안전하게 build_quiz()를 호출하기 위한 래퍼 (가독성용)
 def _safe_build_quiz_after_reset(qtype: str) -> list:
+    # build_quiz는 base_pool==0이면 UI+stop이 있기 때문에
+    # reset 후엔 base_pool이 생기도록 mastered를 이미 비운 상태여야 합니다.
     return build_quiz(qtype)
 
 # ============================================================
@@ -1173,22 +1020,14 @@ ensure_mastered_words_shape()
 
 if "history" not in st.session_state:
     st.session_state.history = []
-if "progress_dirty" not in st.session_state:
-    st.session_state.progress_dirty = False
 if "wrong_counter" not in st.session_state:
     st.session_state.wrong_counter = {}
 if "total_counter" not in st.session_state:
     st.session_state.total_counter = {}
 
-if "quiz" not in st.session_state or not isinstance(st.session_state.quiz, list) or len(st.session_state.quiz) == 0:
-    if st.session_state.get("progress_restored", False):
-        clear_question_widget_keys()  # 잔상 제거(안전)
-        new_quiz = build_quiz(st.session_state.quiz_type)
-        start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
-        st.rerun()
-    else:
-        st.info("진행 상태를 복원 중입니다…")
-        st.stop()
+if "quiz" not in st.session_state:
+    st.session_state.quiz = build_quiz(st.session_state.quiz_type)
+
 # ============================================================
 # ✅ 상단 UI (출제유형/새문제/초기화)
 # ============================================================
@@ -1203,6 +1042,7 @@ selected = st.radio(
     key="radio_quiz_type",
 )
 
+# ✅ 유형 변경: "새 시험 시작 전" 상태로 고정
 if selected != st.session_state.quiz_type:
     clear_question_widget_keys()
     new_quiz = build_quiz(selected)
@@ -1224,11 +1064,15 @@ with col1:
 with col2:
     if st.button("🧹 선택 초기화", use_container_width=True, key="btn_reset_choice"):
         clear_question_widget_keys()
+        # 같은 퀴즈 유지, 답안만 초기화
         start_quiz_state(st.session_state.quiz, st.session_state.quiz_type, clear_wrongs=False)
         st.rerun()
 
 st.divider()
 
+# ============================================================
+# ✅ 맞힌 단어 제외 초기화: "현재 유형만" mastered 비우고 새 시험 시작
+# ============================================================
 if st.button("✅ 맞힌 단어 제외 초기화", use_container_width=True, key="btn_reset_mastered_current_type"):
     ensure_mastered_words_shape()
     st.session_state.mastered_words[st.session_state.quiz_type] = set()
@@ -1241,7 +1085,14 @@ if st.button("✅ 맞힌 단어 제외 초기화", use_container_width=True, key
     st.rerun()
 
 # ============================================================
-# ✅ 문제 표시  (★ 새로고침/세션초기화 후에도 선택값 복원되게 수정)
+# ✅ answers 길이 자동 맞춤
+# ============================================================
+quiz_len = len(st.session_state.quiz)
+if "answers" not in st.session_state or len(st.session_state.answers) != quiz_len:
+    st.session_state.answers = [None] * quiz_len
+
+# ============================================================
+# ✅ 문제 표시
 # ============================================================
 for idx, q in enumerate(st.session_state.quiz):
     st.subheader(f"Q{idx+1}")
@@ -1249,79 +1100,15 @@ for idx, q in enumerate(st.session_state.quiz):
         f'<div class="jp" style="font-size:18px; font-weight:500;">{q["prompt"]}</div>',
         unsafe_allow_html=True,
     )
-
-    widget_key = f"q_{st.session_state.quiz_version}_{idx}"
-
-    # ✅ DB에서 복원된 answers를 "라디오 기본 선택값"으로 반영
-    prev = st.session_state.answers[idx]  # 복원되었을 수도 있는 값
-    default_index = None
-    if prev is not None and prev in q["choices"]:
-        default_index = q["choices"].index(prev)
-
-        # (선택) key 자체가 없을 때만 세션에도 박아주면 더 안전
-        if widget_key not in st.session_state:
-            st.session_state[widget_key] = prev
-
     choice = st.radio(
         label="보기",
         options=q["choices"],
-        index=default_index,      # ★ 여기가 핵심
-        key=widget_key,
+        index=None,
+        key=f"q_{st.session_state.quiz_version}_{idx}",
         label_visibility="collapsed",
-        on_change=mark_progress_dirty,
     )
-
-    # ✅ 이제 choice가 None으로 덮어쓰는 일이 거의 없어짐
     st.session_state.answers[idx] = choice
-# ============================================================
-# ✅ (핵심) 제출 전에도 progress 자동 저장 (선택값 유지)
-# ============================================================
-# ============================================================
-# ✅ (핵심) 제출 전 progress 자동 저장 (선택값 유지)
-# ============================================================
-if "last_progress_save_ts" not in st.session_state:
-    st.session_state.last_progress_save_ts = 0.0
-if "force_progress_save" not in st.session_state:
-    st.session_state.force_progress_save = False
-
-now = time.time()
-
-need_save = (
-    (st.session_state.get("progress_dirty", False) or st.session_state.get("force_progress_save", False))
-    and not st.session_state.get("submitted", False)
-)
-
-# ✅ authed client를 여기서 다시 확보 (토큰 없는 상태면 저장 안 함)
-sb_authed_local = get_authed_sb()
-
-can_save = (
-    need_save
-    and sb_authed_local is not None
-    and (now - float(st.session_state.last_progress_save_ts or 0.0) >= 0.8)  # 0.8초 정도 쓰로틀
-)
-
-if can_save:
-    try:
-        # ✅ "최소 1개라도 답했을 때만 저장" 조건
-        answers = st.session_state.get("answers", [])
-        if not (isinstance(answers, list) and any(a is not None for a in answers)):
-            # 완전 공백이면 저장하지 않음
-            st.session_state.progress_dirty = False
-            st.session_state.force_progress_save = False
-        else:
-            save_progress_to_db(sb_authed_local, user_id)
-
-            st.session_state.last_progress_save_ts = now
-            st.session_state.progress_dirty = False
-            st.session_state.force_progress_save = False
-            test = sb_authed_local.table("profiles").select("id").eq("id", user_id).limit(1).execute()
-    except Exception as e:
-        st.caption(f"AUTH TEST FAIL: {e}")
-
-
-    except Exception as e:
-        # 디버깅 끝나면 이 줄은 빼도 됩니다.
-        st.caption(f"progress 자동저장 실패(무시): {e}")
+    st.divider()
 
 # ============================================================
 # ✅ 제출/채점
@@ -1388,7 +1175,6 @@ if st.session_state.submitted:
     if sb_authed_local is None:
         st.warning("DB 저장/조회용 토큰이 없습니다. 다시 로그인해 주세요.")
     else:
-        # 1) attempt 저장
         if not st.session_state.saved_this_attempt:
             def _save():
                 return save_attempt_to_db(
@@ -1408,7 +1194,6 @@ if st.session_state.submitted:
                 st.warning("DB 저장에 실패했습니다. (테이블/컬럼/권한/RLS 정책 확인 필요)")
                 st.write(str(e))
 
-        # 2) stats 저장
         if not st.session_state.stats_saved_this_attempt:
             def _save_stats():
                 return save_word_stats_via_rpc(
@@ -1424,15 +1209,6 @@ if st.session_state.submitted:
             except Exception:
                 st.caption("※ 단어 통계(stats) 저장이 실패했습니다. (RPC/권한/RLS 확인 필요)")
 
-        # 3) ✅ progress 삭제 (stats if 바깥!)
-        if not st.session_state.get("progress_cleared_this_attempt", False):
-            try:
-                sb_authed_local2 = get_authed_sb()
-                if sb_authed_local2 is not None:
-                    clear_progress_in_db(sb_authed_local2, user_id)
-                st.session_state.progress_cleared_this_attempt = True
-            except Exception:
-                pass
         st.subheader("📌 내 최근 기록")
 
         def _fetch_hist():
@@ -1462,6 +1238,7 @@ if st.session_state.submitted:
             st.info("기록을 불러오지 못했습니다.")
             st.write(str(e))
 
+    # 세션 누적(한 번만)
     if not st.session_state.session_stats_applied_this_attempt:
         st.session_state.history.append({"type": current_type, "score": score, "total": quiz_len})
 
@@ -1473,6 +1250,7 @@ if st.session_state.submitted:
 
         st.session_state.session_stats_applied_this_attempt = True
 
+    # 오답노트
     if st.session_state.wrong_list:
         st.subheader("❌ 오답 노트")
 
@@ -1552,6 +1330,7 @@ if st.session_state.submitted:
 
         st.divider()
 
+        # ✅ 틀린 문제만 다시 풀기 = "오답으로 새 시험 시작 상태"로 고정
         if st.button("❌ 틀린 문제만 다시 풀기", type="primary", use_container_width=True, key="btn_retry_wrong"):
             if not st.session_state.wrong_list:
                 st.warning("오답이 없어서 다시 풀 문제가 없습니다.")
