@@ -698,7 +698,7 @@ if sb_authed is not None:
 
 else:
     st.caption("세션 토큰이 없습니다. (sb_authed=None) 다시 로그인해 주세요.")
-    # st.stop()
+    st.stop()
 
 # ============================================================
 # ✅ 상단: 오늘의 목표(루틴) + 연속 출석 배지
@@ -1167,9 +1167,13 @@ if "wrong_counter" not in st.session_state:
 if "total_counter" not in st.session_state:
     st.session_state.total_counter = {}
 
-if "quiz" not in st.session_state:
-    st.session_state.quiz = build_quiz(st.session_state.quiz_type)
-
+if "quiz" not in st.session_state or not isinstance(st.session_state.quiz, list) or len(st.session_state.quiz) == 0:
+    # progress 복원이 끝났는데도(=progress_restored True) 퀴즈가 없다면 그때만 새로 생성
+    if st.session_state.get("progress_restored", False):
+        st.session_state.quiz = build_quiz(st.session_state.quiz_type)
+    else:
+        st.info("진행 상태를 복원 중입니다…")
+        st.stop()
 # ============================================================
 # ✅ 상단 UI (출제유형/새문제/초기화)
 # ============================================================
