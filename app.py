@@ -41,7 +41,41 @@ if not cookies.ready():
     st.info("쿠키를 초기화하는 중입니다… 잠시 후 자동으로 다시 시도됩니다.")
     st.stop()
 
-st.caption(f"cookie refresh_token exists? {bool(cookies.get('refresh_token'))}")
+if st.session_state.get("is_admin_cached") is True:
+    st.caption(f"cookie refresh_token exists? {bool(cookies.get('refresh_token'))}")
+
+# ============================================================
+# ✅ (추가) 이메일 링크(query_params)로 들어온 토큰을 쿠키/세션에 주입
+# ============================================================
+def ingest_tokens_from_query_params():
+    qp = st.query_params
+
+    at = qp.get("access_token")
+    rt = qp.get("refresh_token")
+
+    # Streamlit query_params는 값이 list처럼 올 때도 있어서 안전 처리
+    if isinstance(at, list): at = at[0] if at else None
+    if isinstance(rt, list): rt = rt[0] if rt else None
+
+    if at:
+        st.session_state.access_token = at
+        cookies["access_token"] = at
+
+    if rt:
+        st.session_state.refresh_token = rt
+        cookies["refresh_token"] = rt
+
+    if at or rt:
+        cookies.save()
+        # 링크 재진입 시 반복 주입 방지 + URL 정리
+        try:
+            st.query_params.clear()
+        except Exception:
+            pass
+
+# ✅ 쿠키 준비된 뒤 1회 실행
+ingest_tokens_from_query_params()
+
 
 # ============================================================
 # ✅ Supabase 연결
@@ -93,9 +127,6 @@ def clear_question_widget_keys():
     keys_to_del = [k for k in list(st.session_state.keys()) if isinstance(k, str) and k.startswith("q_")]
     for k in keys_to_del:
         st.session_state.pop(k, None)
-
-import time
-
 def mark_progress_dirty():
     st.session_state.progress_dirty = True
 
@@ -484,7 +515,6 @@ def auth_box():
 
         if st.button("회원가입", use_container_width=True, disabled=not (email_ok and pw_ok), key="btn_signup"):
             try:
-                import time
                 last = st.session_state.get("last_signup_ts", 0.0)
                 now = time.time()
                 if now - last < 8:
@@ -519,10 +549,18 @@ def auth_box():
                 st.stop()
 
 def require_login():
+    # user 없으면 로그인
     if st.session_state.get("user") is None:
         auth_box()
         st.stop()
 
+    # user는 있는데 토큰이 없으면: 쿠키로 복원 재시도 → 그래도 없으면 로그인 다시
+    if not st.session_state.get("access_token"):
+        ok = refresh_session_from_cookie_if_needed(force=True)
+        if not ok or not st.session_state.get("access_token"):
+            clear_auth_everywhere()
+            auth_box()
+            st.stop()
 # ============================================================
 # ✅ 네이버톡 배너 (제출 후만)
 # ============================================================
