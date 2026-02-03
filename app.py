@@ -289,6 +289,79 @@ def save_word_stats_via_rpc(sb_authed, quiz: list[dict], answers: list, quiz_typ
             },
         ).execute()
 
+  # ============================================================
+# ✅ Progress (DB 저장/복원)
+#   - profiles.progress (jsonb)에 저장한다고 가정
+# ============================================================
+def save_progress_to_db(sb_authed, user_id: str):
+    """
+    현재 퀴즈 진행 상태를 DB(profiles.progress)에 저장
+    """
+    # 저장할 상태가 없으면 저장하지 않음
+    if "quiz" not in st.session_state or "answers" not in st.session_state:
+        return
+
+    payload = {
+        "quiz_type": st.session_state.get("quiz_type"),
+        "quiz_version": int(st.session_state.get("quiz_version", 0) or 0),
+        "quiz": st.session_state.get("quiz"),
+        "answers": st.session_state.get("answers"),
+        "submitted": bool(st.session_state.get("submitted", False)),
+    }
+
+    # 필요하면 wrong_list까지 저장 가능 (원하면 추가)
+    # payload["wrong_list"] = st.session_state.get("wrong_list", [])
+
+    sb_authed.table("profiles").upsert(
+        {"id": user_id, "progress": payload},
+        on_conflict="id",
+    ).execute()
+
+def clear_progress_in_db(sb_authed, user_id: str):
+    """
+    제출 완료 등 '진행 상태 초기화'가 필요할 때 DB progress 제거
+    """
+    sb_authed.table("profiles").upsert(
+        {"id": user_id, "progress": None},
+        on_conflict="id",
+    ).execute()
+
+def restore_progress_from_db(sb_authed, user_id: str):
+    """
+    DB(profiles.progress)에서 진행 상태 복원
+    - progress가 없으면 아무것도 하지 않음
+    """
+    try:
+        res = (
+            sb_authed.table("profiles")
+            .select("progress")
+            .eq("id", user_id)
+            .single()
+            .execute()
+        )
+    except Exception:
+        return
+
+    if not res or not res.data:
+        return
+
+    progress = res.data.get("progress")
+    if not progress:
+        return  # 저장된 progress 없음 => 아래 build_quiz로 새로 시작
+
+    # ✅ 필수 키만 복원 (원하는 키만 유지)
+    st.session_state.quiz_type = progress.get("quiz_type", st.session_state.get("quiz_type", "reading"))
+    st.session_state.quiz_version = int(progress.get("quiz_version", st.session_state.get("quiz_version", 0) or 0))
+    st.session_state.quiz = progress.get("quiz", st.session_state.get("quiz"))
+    st.session_state.answers = progress.get("answers", st.session_state.get("answers"))
+    st.session_state.submitted = bool(progress.get("submitted", st.session_state.get("submitted", False)))
+
+    # 복원 후 안전장치: answers 길이 맞추기
+    if isinstance(st.session_state.quiz, list):
+        qlen = len(st.session_state.quiz)
+        if not isinstance(st.session_state.answers, list) or len(st.session_state.answers) != qlen:
+            st.session_state.answers = [None] * qlen
+
 # ============================================================
 # ✅ Admin 설정 (DB ONLY)
 # ============================================================
@@ -551,13 +624,30 @@ user_id = user.id
 user_email = getattr(user, "email", None) or st.session_state.get("login_email")
 
 sb_authed = get_authed_sb()
+
 if sb_authed is not None:
+    # ✅ (1) 진행상태 복원: "퀴즈가 생성되기 전에" 여기서 1회만 실행
+    if not st.session_state.get("progress_restored"):
+        try:
+            restore_progress_from_db(sb_authed, user_id)
+        except Exception as e:
+            # 복원 실패해도 앱은 계속 진행 (=> 아래에서 build_quiz로 새로 시작 가능)
+            st.caption(f"progress 복원 실패(무시하고 새로 시작): {e}")
+        finally:
+            st.session_state.progress_restored = True
+
+    # ✅ (2) 그 다음 프로필/출석
     ensure_profile(sb_authed, user)
 
     att = mark_attendance_once(sb_authed)
     if att:
         st.session_state["streak_count"] = int(att.get("streak_count", 0) or 0)
         st.session_state["did_attend_today"] = bool(att.get("did_attend", False))
+
+else:
+    st.caption("세션 토큰이 없습니다. (sb_authed=None) 다시 로그인해 주세요.")
+    # 여기서 stop할지 여부는 선택:
+    # st.stop()
 
 # ============================================================
 # ✅ 상단: 오늘의 목표(루틴) + 연속 출석 배지
@@ -1113,6 +1203,13 @@ for idx, q in enumerate(st.session_state.quiz):
         label_visibility="collapsed",
     )
     st.session_state.answers[idx] = choice
+    # 답 선택 직후 자동 저장 (DB 호출 많아질 수 있음)
+if sb_authed is not None:
+    try:
+        save_progress_to_db(sb_authed, user_id)
+    except Exception:
+        pass
+
     st.divider()
 
 # ============================================================
