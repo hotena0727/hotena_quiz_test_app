@@ -283,10 +283,11 @@ def to_kst_naive(x):
 # ✅ DB 함수
 # ============================================================
 def ensure_profile(sb_authed, user):
-    sb_authed.table("profiles").upsert(
-        {"id": user.id, "email": getattr(user, "email", None)},
-        on_conflict="id",
-    ).execute()
+    try:
+        sb_authed.table("profiles").upsert(
+            {"id": user.id, "email": getattr(user, "email", None)},
+            on_conflict="id",
+        ).execute()
     except Exception:
         pass
 
