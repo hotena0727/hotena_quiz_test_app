@@ -1,3 +1,4 @@
+from supabase import ClientOptions
 from pathlib import Path
 import random
 import pandas as pd
@@ -249,8 +250,14 @@ def get_authed_sb():
     if not token:
         return None
 
-    sb2 = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-    sb2.postgrest.auth(token)
+    # ✅ 가장 확실한 방법: ClientOptions로 Authorization 헤더를 강제로 박는다
+    sb2 = create_client(
+        SUPABASE_URL,
+        SUPABASE_ANON_KEY,
+        options=ClientOptions(
+            headers={"Authorization": f"Bearer {token}"}
+        )
+    )
     return sb2
 
 def run_db(callable_fn):
@@ -276,11 +283,10 @@ def to_kst_naive(x):
 # ✅ DB 함수
 # ============================================================
 def ensure_profile(sb_authed, user):
-    try:
-        sb_authed.table("profiles").upsert(
-            {"id": user.id, "email": getattr(user, "email", None)},
-            on_conflict="id",
-        ).execute()
+    sb_authed.table("profiles").upsert(
+        {"id": user.id, "email": getattr(user, "email", None)},
+        on_conflict="id",
+    ).execute()
     except Exception:
         pass
 
@@ -1307,11 +1313,13 @@ if can_save:
             st.session_state.last_progress_save_ts = now
             st.session_state.progress_dirty = False
             st.session_state.force_progress_save = False
+            test = sb_authed_local.table("profiles").select("id").eq("id", user_id).limit(1).execute()
+st.caption(f"AUTH TEST OK: {bool(test.data)}")
+
 
     except Exception as e:
         # 디버깅 끝나면 이 줄은 빼도 됩니다.
         st.caption(f"progress 자동저장 실패(무시): {e}")
-        st.caption(f"DEBUG authed? {sb_authed_local is not None} / has_token? {bool(st.session_state.get('access_token'))}")
 
 # ============================================================
 # ✅ 제출/채점
