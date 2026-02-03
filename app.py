@@ -683,14 +683,18 @@ user_email = getattr(user, "email", None) or st.session_state.get("login_email")
 
 sb_authed = get_authed_sb()
 
+if "progress_restored" not in st.session_state:
+    st.session_state.progress_restored = False
+
 if sb_authed is not None:
     if not st.session_state.get("progress_restored"):
         try:
             restore_progress_from_db(sb_authed, user_id)
-        except Exception as e:
-            st.caption(f"progress 복원 실패(무시하고 새로 시작): {e}")
-        finally:
             st.session_state.progress_restored = True
+        except Exception as e:
+            st.warning("진행상태를 불러오는 중 네트워크가 불안정합니다. 연결이 안정되면 자동으로 이어집니다.")
+            st.caption(f"progress 복원 에러: {e}")
+            st.stop()
 
     ensure_profile(sb_authed, user)
 
