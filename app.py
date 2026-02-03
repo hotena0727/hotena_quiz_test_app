@@ -536,7 +536,10 @@ def render_naver_talk():
 # ============================================================
 # ✅ 앱 시작: refresh → 로그인 강제 → profile upsert → 출석 체크
 # ============================================================
-refresh_session_from_cookie_if_needed(force=False)
+ok = refresh_session_from_cookie_if_needed(force=False)
+
+if not ok and cookies.get("refresh_token"):
+    st.caption("세션 복원 시도 중 문제가 발생했습니다. 다시 로그인해 주세요.")
 
 if "user" not in st.session_state:
     st.session_state.user = None
