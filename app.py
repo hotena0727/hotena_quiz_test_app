@@ -1248,7 +1248,7 @@ if st.session_state.get("progress_dirty", False) and not st.session_state.get("s
                 st.caption(f"progress 자동저장 실패(무시): {e}")
     else:
     # 토큰 없으면 저장 못 함 → dirty는 유지(로그인 복구되면 저장될 수 있게)
-    pass
+        pass
 # ============================================================
 # ✅ 제출/채점
 # ============================================================
