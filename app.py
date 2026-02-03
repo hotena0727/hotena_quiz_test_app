@@ -508,20 +508,33 @@ if selected != st.session_state.pos_mode:
 st.divider()
 if st.button("🧪 RPC 테스트(1회)"):
     sb_authed = get_authed_sb()
-    st.write("sb_authed:", sb_authed is not None)
-    try:
-        sb_authed.rpc("record_word_result", {
-            "p_word_key": "TEST_WORD",
-            "p_level": LEVEL,
-            "p_pos": "i_adj",
-            "p_quiz_type": "debug",
-            "p_is_correct": True
-        }).execute()
-        st.success("✅ RPC 호출 성공")
-    except Exception as e:
-        st.error("❌ RPC 호출 실패")
-        st.write(getattr(e, "args", e))
 
+    st.write("token 있음?", bool(st.session_state.get("access_token")))
+    st.write("sb_authed:", sb_authed is not None)
+
+    # ✅ 1) 토큰/클라이언트 없으면 여기서 즉시 종료
+    if sb_authed is None:
+        st.error("❌ sb_authed가 None입니다. (로그인 토큰 없이 RPC 호출하려는 상태)")
+        st.stop()
+
+    # ✅ 2) RPC 호출
+    try:
+        sb_authed.rpc(
+            "record_word_result",
+            {
+                "p_word_key": "TEST_WORD",
+                "p_level": LEVEL,
+                "p_pos": "i_adj",
+                "p_quiz_type": "debug",
+                "p_is_correct": True,
+            },
+        ).execute()
+        st.success("✅ RPC 호출 성공")
+
+    except Exception as e:
+        # ✅ 3) 에러를 '전문'으로 보여줘야 원인 파악 가능
+        st.error("❌ RPC 호출 실패")
+        st.exception(e)
 
 st.caption(f"현재 선택: **{mode_label_map[st.session_state.pos_mode]}**")
 st.divider()
