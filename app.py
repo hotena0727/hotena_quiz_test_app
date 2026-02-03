@@ -1246,6 +1246,33 @@ for idx, q in enumerate(st.session_state.quiz):
 
     # ✅ 이제 choice가 None으로 덮어쓰는 일이 거의 없어짐
     st.session_state.answers[idx] = choice
+# ============================================================
+# ✅ (핵심) 제출 전에도 progress 자동 저장 (선택값 유지)
+#   - 라디오 변경 → mark_progress_dirty() → rerun
+#   - rerun 후 여기서 DB에 progress 저장
+# ============================================================
+import time
+
+if "last_progress_save_ts" not in st.session_state:
+    st.session_state.last_progress_save_ts = 0.0
+
+if st.session_state.get("progress_dirty", False) and not st.session_state.get("submitted", False):
+    sb_authed_local = get_authed_sb()
+    if sb_authed_local is not None:
+        now = time.time()
+
+        # ✅ 너무 잦은 저장 방지 (0.5~1.0초 정도면 충분)
+        if now - float(st.session_state.last_progress_save_ts) >= 0.8:
+            try:
+                save_progress_to_db(sb_authed_local, user_id)
+                st.session_state.last_progress_save_ts = now
+                st.session_state.progress_dirty = False
+            except Exception as e:
+                # 저장 실패해도 퀴즈는 계속 진행되게 (조용히)
+                st.caption(f"progress 자동저장 실패(무시): {e}")
+    else:
+        # 토큰 없으면 저장 못 함 (다음 로그인 후부터 정상)
+        st.session_state.progress_dirty = False
 
 # ============================================================
 # ✅ 제출/채점
@@ -1356,7 +1383,7 @@ if st.session_state.submitted:
                     clear_progress_in_db(sb_authed_local2, user_id)
                 st.session_state.progress_cleared_this_attempt = True
             except Exception:
-               pass
+                pass
         st.subheader("📌 내 최근 기록")
 
         def _fetch_hist():
