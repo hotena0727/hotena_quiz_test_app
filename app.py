@@ -40,6 +40,8 @@ if not cookies.ready():
     st.info("쿠키를 초기화하는 중입니다… 잠시 후 자동으로 다시 시도됩니다.")
     st.stop()
 
+st.caption(f"cookie refresh_token exists? {bool(cookies.get('refresh_token'))}")  
+
 # ============================================================
 # ✅ Supabase 연결
 # ============================================================
@@ -371,7 +373,6 @@ def auth_box():
                 st.session_state.pop("is_admin_cached", None)
                 st.success("로그인 완료!")
                 st.rerun()
-                st.caption(f"cookie refresh_token exists? {bool(cookies.get('refresh_token'))}")
 
             except Exception:
                 st.error("로그인 실패: 이메일/비밀번호 또는 이메일 인증 상태를 확인해주세요.")
