@@ -198,9 +198,11 @@ def run_db(callable_fn):
             st.rerun()
         raise
 
-def to_kst_naive(series_or_value):
-    ts = pd.to_datetime(series_or_value, utc=True, errors="coerce")
-    return ts.dt.tz_convert(KST_TZ).dt.tz_localize(None)
+def to_kst_naive(x):
+    ts = pd.to_datetime(x, utc=True, errors="coerce")
+    if hasattr(ts, "dt"):
+        return ts.dt.tz_convert(KST_TZ).dt.tz_localize(None)
+    return ts.tz_convert(KST_TZ).tz_localize(None) if ts is not pd.NaT else ts
 
 # ============================================================
 # ✅ DB 함수
@@ -539,10 +541,8 @@ def render_naver_talk():
 ok = refresh_session_from_cookie_if_needed(force=False)
 
 if not ok and cookies.get("refresh_token"):
-    st.caption("세션 복원 시도 중 문제가 발생했습니다. 다시 로그인해 주세요.")
-
-if "user" not in st.session_state:
-    st.session_state.user = None
+    clear_auth_everywhere()
+    st.caption("세션 복원에 실패해서 로그인을 다시 요청합니다.")
 
 require_login()
 
