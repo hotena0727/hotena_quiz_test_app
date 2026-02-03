@@ -99,29 +99,6 @@ import time
 def mark_progress_dirty():
     st.session_state.progress_dirty = True
 
-    # ✅ 로그인/토큰 없는 상태면 저장 불가
-    u = st.session_state.get("user")
-    if u is None:
-        return
-
-    sb_authed_local = get_authed_sb()
-    if sb_authed_local is None:
-        return
-
-    # ✅ 너무 자주 저장하지 않게(1초 쿨다운)
-    now = time.time()
-    last = st.session_state.get("_last_progress_save_ts", 0.0)
-    if now - last < 1.0:
-        return
-
-    try:
-        save_progress_to_db(sb_authed_local, u.id)
-        st.session_state["_last_progress_save_ts"] = now
-        st.session_state.progress_dirty = False
-    except Exception:
-        # 저장 실패해도 퀴즈 진행은 계속되게
-        pass
-
 # ============================================================
 # ✅ (핵심) 퀴즈 상태를 "시험 시작 전"으로 한 방에 세팅
 # ============================================================
@@ -1260,20 +1237,16 @@ if st.session_state.get("progress_dirty", False) and not st.session_state.get("s
     sb_authed_local = get_authed_sb()
     if sb_authed_local is not None:
         now = time.time()
-
-        # ✅ 너무 잦은 저장 방지 (0.5~1.0초 정도면 충분)
         if now - float(st.session_state.last_progress_save_ts) >= 0.8:
             try:
                 save_progress_to_db(sb_authed_local, user_id)
                 st.session_state.last_progress_save_ts = now
                 st.session_state.progress_dirty = False
             except Exception as e:
-                # 저장 실패해도 퀴즈는 계속 진행되게 (조용히)
                 st.caption(f"progress 자동저장 실패(무시): {e}")
-    else:
-        # 토큰 없으면 저장 못 함 (다음 로그인 후부터 정상)
-        st.session_state.progress_dirty = False
-
+  else:
+    # 토큰 없으면 저장 못 함 → dirty는 유지(로그인 복구되면 저장될 수 있게)
+    pass
 # ============================================================
 # ✅ 제출/채점
 # ============================================================
