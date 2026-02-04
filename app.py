@@ -90,11 +90,29 @@ def clear_question_widget_keys():
     keys_to_del = [k for k in list(st.session_state.keys()) if isinstance(k, str) and k.startswith("q_")]
     for k in keys_to_del:
         st.session_state.pop(k, None)
+# ============================================================
+# ✅ (핵심) 위젯 값 기준으로 answers를 재구성 (보이는 것 = 채점)
+# ============================================================
+def sync_answers_from_widgets():
+    qv = st.session_state.get("quiz_version", 0)
+    quiz = st.session_state.get("quiz", [])
+    if not isinstance(quiz, list):
+        return
+
+    answers = st.session_state.get("answers")
+    if not isinstance(answers, list) or len(answers) != len(quiz):
+        st.session_state.answers = [None] * len(quiz)
+
+    for idx in range(len(quiz)):
+        widget_key = f"q_{qv}_{idx}"
+        if widget_key in st.session_state:
+            st.session_state.answers[idx] = st.session_state[widget_key]
 
 import time
 
 def mark_progress_dirty():
     st.session_state.progress_dirty = True
+    st.session_state._progress_dirty_ts = time.time()
 
     # ✅ 로그인 상태 + authed client 있을 때만 저장
     sb_authed_local = get_authed_sb()
@@ -1239,6 +1257,7 @@ for idx, q in enumerate(st.session_state.quiz):
 
     # ✅ 이제 choice가 None으로 덮어쓰는 일이 거의 없어짐
     st.session_state.answers[idx] = choice
+sync_answers_from_widgets()
 
 # ============================================================
 # ✅ 제출/채점
@@ -1326,6 +1345,7 @@ if st.session_state.submitted:
 
         if not st.session_state.stats_saved_this_attempt:
             def _save_stats():
+                sync_answers_from_widgets()
                 return save_word_stats_via_rpc(
                     sb_authed=sb_authed_local,
                     quiz=st.session_state.quiz,
