@@ -256,8 +256,9 @@ APP_URL = "https://hotenaquiztestapp-5wiha4zfuvtnq4qgxdhq72.streamlit.app/"
 LEVEL = "N4"
 N = 10
 KST_TZ = "Asia/Seoul"
+BASE_DIR = Path(__file__).resolve().parent
 CSV_PATH = BASE_DIR / "data" / "words_adj_300.csv"
-# 예: 파일명이 다르면 위 문자열만 실제 파일명으로 바꾸세요.
+
 quiz_label_map = {
     "reading": "발음",
     "meaning": "뜻",
