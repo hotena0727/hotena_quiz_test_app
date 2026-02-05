@@ -43,6 +43,18 @@ div[data-testid="stMarkdownContainer"] h4{
   margin-bottom: 8px !important;
 }
 
+.seglabel{
+  font-weight: 900;
+  font-size: 14px;
+  opacity: .90;
+  letter-spacing: .2px;
+  line-height: 1;
+  user-select: none;
+  pointer-events: none;
+  padding-left: 2px;
+  transform: translateY(1px);
+}
+
 /* 일반 버튼(새문제/초기화 등) */
 div.stButton > button {
   padding: 6px 10px !important;
