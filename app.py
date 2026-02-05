@@ -1750,7 +1750,6 @@ if (not is_mastered_done) and (not isinstance(st.session_state.quiz, list) or le
 # ✅ 정복 상태면 안내만
 if is_mastered_done:
     st.info("✅ 이미 이 유형은 모두 정복했습니다. (초기화하거나 다른 유형을 선택해 주세요.)")
-    st.stop()
     
 # ============================================================
 # ✅ 상단 UI (품사 / 출제유형)
@@ -1825,6 +1824,10 @@ cbtn1, cbtn2 = st.columns(2)
 
 with cbtn1:
     if st.button("🔄 새 문제(랜덤 10문항)", use_container_width=True, key="btn_new_random_10"):
+        if st.session_state.get("mastery_done", {}).get(st.session_state.quiz_type, False):
+            st.info("✅ 이미 이 유형은 모두 정복했습니다. (초기화하거나 다른 유형을 선택해 주세요.)")
+            st.session_state["_scroll_top_once"] = True
+            st.rerun()
         clear_question_widget_keys()
         # 현재 유형 그대로 랜덤 새 세트 생성
         new_quiz = build_quiz(st.session_state.quiz_type)
@@ -1867,6 +1870,17 @@ if "answers" not in st.session_state or not isinstance(st.session_state.answers,
 # ============================================================
 # ✅ 문제 표시  (★ 새로고침/세션초기화 후에도 선택값 복원되게 수정)
 # ============================================================
+# ✅✅✅ [핵심] 정복 상태면 "문제는 표시하지 않음"
+# - 품사/유형/버튼 UI는 이미 위에서 렌더되었으므로 여기서 멈추면 UI는 유지되고,
+#   Q1~ 문제 영역만 차단됩니다.
+ensure_mastery_banner_shape()
+_cur_type = st.session_state.get("quiz_type")
+_is_mastered_done = bool(st.session_state.get("mastery_done", {}).get(_cur_type, False))
+
+if _is_mastered_done:
+    # 안내 문구는 위(세그먼트 아래 caption)에서 이미 보여주고 있으니 여기서는 멈추기만.
+    st.stop()
+
 for idx, q in enumerate(st.session_state.quiz):
     st.subheader(f"Q{idx+1}")
     st.markdown(
