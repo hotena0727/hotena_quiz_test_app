@@ -17,10 +17,6 @@ st.markdown("""
 <link href="https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=Noto+Sans+JP:wght@400;500;700;800&display=swap" rel="stylesheet">
 
 <style>
-/* ✅ 버튼이 하나도 없는 segmented control 숨기기 */
-div[data-baseweb="button-group"]:has(button) { display: flex; }
-div[data-baseweb="button-group"]:not(:has(button)) { display: none; }
-
 :root{ --jp-rounded: "Noto Sans JP","Kosugi Maru","Hiragino Sans","Yu Gothic","Meiryo",sans-serif; }
 .jp, .jp *{ font-family: var(--jp-rounded) !important; line-height:1.7; letter-spacing:.2px; }
 
