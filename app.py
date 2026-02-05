@@ -410,7 +410,7 @@ def ensure_pools_ready():
         st.stop()
 
     if len(pool_v) < N:
-        st.error(f"동사 단어가 부족합니다: pool={len(pool_v)}")
+        st.error(f"동사 단어가 부족합니다: pool={len(pool_verb)}")
         st.stop()
       
     st.session_state["pool_ready"] = True
