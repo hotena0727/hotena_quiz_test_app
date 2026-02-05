@@ -109,7 +109,7 @@ div[data-baseweb="button-group"] button[aria-pressed="false"]{
   border: 1px solid rgba(120,120,120,0.18);
   border-radius: 16px;
   padding: 12px 12px;
-  margin: 14x 0 12px 0;
+  margin: 4px 0 12px 0;
   background: rgba(255,255,255,0.03);
 }
 .tophello{
