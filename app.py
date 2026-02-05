@@ -111,8 +111,9 @@ POS_MODE_MAP = {
     "i_adj": "い형용사",
     "na_adj": "な형용사",
     "mix_adj": "혼합",
+    "verb": "동사",              # ✅ 추가
 }
-POS_MODES = ["i_adj", "na_adj", "mix_adj"]
+POS_MODES = ["i_adj", "na_adj", "mix_adj", "verb"]  # ✅ 추가
 
 st.markdown('<div id="__TOP__"></div>', unsafe_allow_html=True)
 
@@ -363,6 +364,7 @@ def _load_pools_cached(csv_path_str: str, level: str):
     # 4) 품사별 분리
     pool_i = pool[pool["pos"] == "i_adj"].copy()
     pool_na = pool[pool["pos"] == "na_adj"].copy()
+    pool_v = pool[pool["pos"] == "verb"].copy()      
 
     # 5) reading용(표기 없는 단어 제거), meaning용(전체 허용)
     pool_i_reading = pool_i[pool_i["jp_word"].notna() & (pool_i["jp_word"].astype(str).str.strip() != "")].copy()
@@ -376,6 +378,7 @@ def _load_pools_cached(csv_path_str: str, level: str):
 def ensure_pools_ready():
     global pool, pool_i, pool_i_reading, pool_i_meaning
     global pool_na, pool_na_reading, pool_na_meaning
+    global pool_v, pool_v_reading, pool_v_meaning   # ✅ 추가
 
     globals_ok = all(
         (name in globals()) and (globals().get(name) is not None)
@@ -389,7 +392,7 @@ def ensure_pools_ready():
         return
 
     try:
-        pool, pool_i, pool_i_reading, pool_i_meaning, pool_na, pool_na_reading, pool_na_meaning = _load_pools_cached(str(CSV_PATH), LEVEL)
+        pool, pool_i, pool_i_reading, pool_i_meaning, pool_na, pool_na_reading, pool_na_meaning, pool_v, pool_v_reading, pool_v_meaning) = _load_pools_cached(str(CSV_PATH), LEVEL)
     except Exception as e:
         st.error(f"단어 데이터 로드 실패: {e}")
         st.stop()
@@ -402,6 +405,10 @@ def ensure_pools_ready():
         st.error(f"な형용사 단어가 부족합니다: pool={len(pool_na)}")
         st.stop()
 
+    if len(pool_v) < N:
+        st.error(f"동사 단어가 부족합니다: pool={len(pool_v)}")
+        st.stop()
+      
     st.session_state["pool_ready"] = True
 
 # ============================================================
@@ -1236,6 +1243,9 @@ def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
     elif pos_mode == "na_adj":
         base = pool_na
         base_for_distractor = pool_na
+    elif pos_mode == "verb":     # ✅ 추가
+        base = pool_v
+        base_for_distractor = pool_v
     else:
         base = pd.concat([pool_i, pool_na], ignore_index=True)
         base_for_distractor = base  # ✅ concat 그대로 재사용
@@ -1686,10 +1696,17 @@ def build_quiz(qtype: str) -> list:
         base_reading = pool_i_reading
         base_meaning = pool_i_meaning
         base_for_distractor = pool_i
+        
     elif pos_mode == "na_adj":
         base_reading = pool_na_reading
         base_meaning = pool_na_meaning
         base_for_distractor = pool_na
+
+    elif pos_mode == "verb":   # ✅ 추가
+        base_reading = pool_v_reading
+        base_meaning = pool_v_meaning
+        base_for_distractor = pool_v
+    
     else:
         base_reading = pd.concat([pool_i_reading, pool_na_reading], ignore_index=True)
         base_meaning = pd.concat([pool_i_meaning, pool_na_meaning], ignore_index=True)
