@@ -1509,17 +1509,23 @@ def render_my_dashboard():
         st.session_state.page = "quiz"
         st.rerun()
 
-    # ✅ NameError 방지: user_id를 함수 안에서 다시 확보
+    # ✅ 안전장치: user_id, LEVEL, N 등을 함수 안에서 확보(전역 의존 최소화)
     u = st.session_state.get("user")
     if not u:
         st.warning("로그인 정보가 없습니다. 다시 로그인해 주세요.")
         st.session_state.page = "quiz"
         st.stop()
+
     user_id_local = getattr(u, "id", None)
     if not user_id_local:
         st.warning("유저 ID를 찾지 못했습니다. 다시 로그인해 주세요.")
         st.session_state.page = "quiz"
         st.stop()
+
+    level_local = globals().get("LEVEL", "N4")
+    n_local = globals().get("N", 10)
+    qlabel_table = globals().get("quiz_label_for_table", {})
+    # (아래에서 user_id → user_id_local, LEVEL → level_local, N → n_local로 쓰면 더 안전)
 
     sb_authed_local = get_authed_sb()
     if sb_authed_local is None:
@@ -1528,6 +1534,7 @@ def render_my_dashboard():
 
     def _fetch():
         return fetch_recent_attempts(sb_authed_local, user_id_local, limit=50)
+
 
     try:
         res = run_db(_fetch)
