@@ -1560,13 +1560,12 @@ def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
     elif pos_mode == "na_adj":
         base = pool_na
         base_for_distractor = pool_na
-    elif pos_mode == "verb":     # ✅ 추가
+    elif pos_mode == "verb":
         base = pool_v
         base_for_distractor = pool_v
     else:
         base = pd.concat([pool_i, pool_na, pool_v], ignore_index=True)
         base_for_distractor = base
-
 
     retry_df = base[(base["jp_word"].isin(wrong_words)) | (base["reading"].isin(wrong_words))].copy()
 
@@ -1577,9 +1576,9 @@ def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
     retry_df = retry_df.sample(frac=1).reset_index(drop=True)
 
     return [
-    make_question(retry_df.iloc[i], qtype, base_for_distractor, base_for_distractor)
-    for i in range(len(retry_df))
-
+        make_question(retry_df.iloc[i], qtype, base_for_distractor, base_for_distractor)
+        for i in range(len(retry_df))
+    ]
 
     # ------------------------------------------------------------
     # ✅ 품사별 출제 풀 선택
