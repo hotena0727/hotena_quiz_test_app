@@ -10,19 +10,6 @@ from collections import Counter
 # ============================================================
 # ✅ Streamlit 기본 설정 (최상단)
 # ============================================================
-def main():
-    # ✅ 여기부터 기존 코드 전부를 넣기
-    ...
-
-if __name__ == "__main__":
-    try:
-        main()
-    except Exception:
-        import traceback
-        st.error("❌ 앱이 중간에서 죽었습니다. 아래 에러가 원인입니다.")
-        st.code(traceback.format_exc())
-        st.stop()
-
 st.set_page_config(page_title="JLPT Quiz", layout="centered")
 st.markdown("""
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -428,7 +415,6 @@ def ensure_pools_ready():
     global pool_na, pool_na_reading, pool_na_meaning
     global pool_v, pool_v_reading, pool_v_meaning
 
-    # ✅ globals_ok: 쉼표 누락 버그 수정
     required_names = (
         "pool","pool_i","pool_i_reading","pool_i_meaning",
         "pool_na","pool_na_reading","pool_na_meaning",
@@ -451,7 +437,6 @@ def ensure_pools_ready():
         st.error(f"단어 데이터 로드 실패: {e}")
         st.stop()
 
-    # ✅ 기본(형용사) 부족은 앱의 기본 기능이 깨지는 거라서 즉시 stop 유지
     if len(pool_i) < N:
         st.error(f"い형용사 단어가 부족합니다: pool={len(pool_i)}")
         st.stop()
@@ -460,14 +445,12 @@ def ensure_pools_ready():
         st.error(f"な형용사 단어가 부족합니다: pool={len(pool_na)}")
         st.stop()
 
-    # ✅ 동사 부족은 '동사 탭을 눌렀을 때만' 막기
-    #    (동사 안 쓰면 앱은 정상 동작해야 UX 좋음)
-    if st.session_state.get("pos_mode") == "verb":
-        if len(pool_v) < N:
-            st.error(f"동사 단어가 부족합니다: pool={len(pool_v)}")
-            st.stop()
+    if st.session_state.get("pos_mode") == "verb" and len(pool_v) < N:
+        st.error(f"동사 단어가 부족합니다: pool={len(pool_v)}")
+        st.stop()
 
     st.session_state["pool_ready"] = True
+
 
 # ============================================================
 # ✅ mastered_words를 유형별로 유지하는 유틸
@@ -590,33 +573,42 @@ def clear_auth_everywhere():
         "auth_mode", "signup_done", "last_signup_ts",
         "page",
         "quiz", "answers", "submitted", "wrong_list",
-        "quiz_version", "quiz_type", "saved_this_attempt",
-        "stats_saved_this_attempt",
+        "quiz_version", "quiz_type",
+        "saved_this_attempt", "stats_saved_this_attempt",
         "history", "wrong_counter", "total_counter",
         "attendance_checked", "streak_count", "did_attend_today",
         "is_admin_cached",
         "session_stats_applied_this_attempt",
         "mastered_words",
-        "progress_restored",
-        "pool_ready",   # ✅ 추가
+        "progress_restored", "pool_ready",
         "_sb_authed", "_sb_authed_token",
     ]:
         st.session_state.pop(k, None)
 
+def run_db(callable_fn):
+    try:
+        return callable_fn()
+    except Exception as e:
+        if is_jwt_expired_error(e):
+            ok = refresh_session_from_cookie_if_needed(force=True)
+            if ok:
+                st.rerun()
+            clear_auth_everywhere()
+            st.warning("세션이 만료되었습니다. 다시 로그인해 주세요.")
+            st.rerun()
+        raise
 # ============================================================
 # ✅✅✅ (로그인 유지/새로고침 복원) 최소 수정 핵심
 #   1) refresh_token으로 refresh_session 시도
 #   2) 실패하면 access_token으로 get_user 시도 (새로고침 대비)
 # ============================================================
 def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
-    # 이미 세션 살아있으면 통과
     if not force and st.session_state.get("user") and st.session_state.get("access_token"):
         return True
 
     rt = cookies.get("refresh_token")
     at = cookies.get("access_token")
 
-    # 1) refresh_token이 있으면 우선 refresh 시도
     if rt:
         try:
             refreshed = sb.auth.refresh_session(rt)
@@ -634,19 +626,15 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
                 cookies.save()
                 return True
         except Exception:
-            # refresh 실패 시 2) access_token으로 user 조회 fallback
             pass
 
-    # 2) refresh가 없거나 실패했을 때 access_token으로 user 복원 시도
     if at:
         try:
             u = sb.auth.get_user(at)
-            # supabase-py 버전에 따라 u.user / u.data 등 차이 있을 수 있어 안전하게 처리
             user_obj = getattr(u, "user", None) or getattr(u, "data", None) or None
             if user_obj:
                 st.session_state.user = user_obj
                 st.session_state.access_token = at
-                # refresh_token은 없을 수 있음 (있으면 세팅)
                 if rt:
                     st.session_state.refresh_token = rt
 
@@ -659,8 +647,8 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
 
     return False
 
+
 def get_authed_sb():
-    # ✅ 토큰이 없으면 쿠키 기반 복원 시도
     if not st.session_state.get("access_token"):
         refresh_session_from_cookie_if_needed(force=True)
 
@@ -668,7 +656,6 @@ def get_authed_sb():
     if not token:
         return None
 
-    # ✅ 같은 토큰이면, 매 rerun마다 create_client 하지 말고 캐시 재사용
     cached = st.session_state.get("_sb_authed")
     cached_token = st.session_state.get("_sb_authed_token")
 
@@ -681,6 +668,7 @@ def get_authed_sb():
     st.session_state["_sb_authed"] = sb2
     st.session_state["_sb_authed_token"] = token
     return sb2
+
 
 def run_db(callable_fn):
     try:
@@ -1186,11 +1174,46 @@ else:
 # ============================================================
 # ✅ 상단 헤더 (카드형)
 # ============================================================
+def render_topcard():
+    # 로그인된 상태만 표시
+    u = st.session_state.get("user")
+    if not u:
+        return
+
+    email = getattr(u, "email", None) or st.session_state.get("login_email", "")
+
+    st.markdown('<div class="topcard">', unsafe_allow_html=True)
+
+    c1, c2 = st.columns([7, 3])
+    with c1:
+        st.markdown(f'<div class="tophello">환영합니다 🙂<br>{email}</div>', unsafe_allow_html=True)
+
+    with c2:
+        if st.button("로그아웃", use_container_width=True, key="btn_logout_top"):
+            clear_auth_everywhere()
+            st.rerun()
+
+    # 내 대시보드/관리자 버튼(선택)
+    d1, d2 = st.columns(2)
+    with d1:
+        if st.button("📌 내 대시보드", use_container_width=True, key="btn_nav_my"):
+            st.session_state.page = "my"
+            st.rerun()
+
+    with d2:
+        if is_admin():
+            if st.button("📊 관리자", use_container_width=True, key="btn_nav_admin"):
+                st.session_state.page = "admin"
+                st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
 if "page" not in st.session_state:
     st.session_state.page = "quiz"
 
 # ... (상단 카드 렌더링 동일)
 
+render_topcard()  
 # ============================================================
 # ✅ 라우팅 (여기서는 '화면만' 바꾼다)
 # ============================================================
@@ -2014,8 +2037,7 @@ for idx, q in enumerate(st.session_state.quiz):
 
     widget_key = f"q_{st.session_state.quiz_version}_{idx}"
 
-    # ✅ DB에서 복원된 answers를 "라디오 기본 선택값"으로 반영
-    prev = st.session_state.answers[idx]  # 복원되었을 수도 있는 값
+    prev = st.session_state.answers[idx]
     default_index = None
     if prev is not None and prev in q["choices"]:
         default_index = q["choices"].index(prev)
@@ -2023,16 +2045,15 @@ for idx, q in enumerate(st.session_state.quiz):
     choice = st.radio(
         label="보기",
         options=q["choices"],
-        index=default_index,      # ★ 여기가 핵심
+        index=default_index,      # ← 이게 핵심
         key=widget_key,
         label_visibility="collapsed",
         on_change=mark_progress_dirty,
     )
 
-    # ✅ 이제 choice가 None으로 덮어쓰는 일이 거의 없어짐
     st.session_state.answers[idx] = choice
-sync_answers_from_widgets()
 
+sync_answers_from_widgets()
 # ============================================================
 # ✅ 제출/채점
 # ============================================================
