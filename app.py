@@ -1774,7 +1774,6 @@ if clicked and clicked != st.session_state.quiz_type:
     start_quiz_state(new_quiz, clicked, clear_wrongs=True)
     st.rerun()
 
-st.caption(f"현재 선택: **{quiz_label_map.get(st.session_state.quiz_type, st.session_state.quiz_type)}**")
 st.divider()
 
 # ✅✅ 여기부터 추가/정리 (새 문제 + 초기화)
