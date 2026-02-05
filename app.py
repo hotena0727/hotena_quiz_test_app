@@ -392,7 +392,7 @@ def ensure_pools_ready():
         return
 
     try:
-        pool, pool_i, pool_i_reading, pool_i_meaning, pool_na, pool_na_reading, pool_na_meaning, pool_v, pool_v_reading, pool_v_meaning) = _load_pools_cached(str(CSV_PATH), LEVEL)
+        pool, pool_i, pool_i_reading, pool_i_meaning, pool_na, pool_na_reading, pool_na_meaning, pool_v, pool_v_reading, pool_v_meaning = _load_pools_cached(str(CSV_PATH), LEVEL)
     except Exception as e:
         st.error(f"단어 데이터 로드 실패: {e}")
         st.stop()
