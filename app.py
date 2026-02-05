@@ -54,7 +54,7 @@ div[data-testid="stMarkdownContainer"] h4{
   padding-left: 2px;
 
   /* ✅ 여기만 조절: +2~+4px 사이 추천 */
-  transform: translateY(7px);
+  transform: translateY(8px);
 }
 
 
