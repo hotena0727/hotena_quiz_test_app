@@ -706,7 +706,7 @@ def save_progress_to_db(sb_authed, user_id: str):
 
     payload = {
         "quiz_type": st.session_state.get("quiz_type"),
-        "pos_mode": st.session_state.get("pos_mode"),  # ✅ 추가
+        "pos_mode": st.session_state.get("pos_mode", "i_adj"), # ✅ 추가
         "quiz_version": int(st.session_state.get("quiz_version", 0) or 0),
         "quiz": st.session_state.get("quiz"),
         "answers": st.session_state.get("answers"),
@@ -745,6 +745,7 @@ def restore_progress_from_db(sb_authed, user_id: str):
 
     st.session_state.quiz_type = progress.get("quiz_type", st.session_state.get("quiz_type", "reading"))
     st.session_state.pos_mode = progress.get("pos_mode", st.session_state.get("pos_mode", "i_adj"))  # ✅ 추가
+
 
     st.session_state.quiz_version = int(progress.get("quiz_version", st.session_state.get("quiz_version", 0) or 0))
     st.session_state.quiz = progress.get("quiz", st.session_state.get("quiz"))
