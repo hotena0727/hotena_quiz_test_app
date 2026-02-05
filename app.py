@@ -26,45 +26,46 @@ label[data-baseweb="radio"] * {
   font-family: var(--jp-rounded) !important;
 }
 
-/* ✅✅✅ 심플 타이틀(캡션) + 간격 최소화 */
+/* ✅ 타이틀(캡션) - 작고 촘촘 */
 .control-title{
   font-weight: 800;
-  font-size: 13px;
-  opacity: .8;
-  margin: 2px 0 4px 0;
+  font-size: 12.5px;
+  opacity: .75;
+  margin: 2px 0 4px 0;   /* 위/아래 간격 최소 */
 }
 
-/* ✅✅✅ segmented_control 전체를 ‘얇고 심플’하게 */
+/* ✅ segmented_control: 완전 미니멀 (테두리/트레이 제거) */
 div[data-baseweb="button-group"]{
   background: transparent !important;
-  border: 1px solid rgba(120,120,120,0.20) !important;
-  padding: 2px !important;
-  border-radius: 12px !important;
-  gap: 2px !important;
-  margin: 0 0 8px 0 !important;   /* 아래 여백만 살짝 */
+  border: 0 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  gap: 6px !important;          /* 버튼끼리 간격만 */
+  margin: 0 0 10px 0 !important; /* 아래 여백만 살짝 */
 }
 
+/* 버튼: 라벨처럼 보이게 */
 div[data-baseweb="button-group"] button{
-  border-radius: 10px !important;
+  border-radius: 999px !important;
   padding: 6px 10px !important;
   font-weight: 800 !important;
-  border: 0 !important;
+  border: 1px solid rgba(120,120,120,0.18) !important;
   background: transparent !important;
   box-shadow: none !important;
   white-space: nowrap !important;
   line-height: 1.05 !important;
-  min-height: 32px !important;
-}
-
-div[data-baseweb="button-group"] button[aria-pressed="true"]{
-  background: rgba(120,120,120,0.10) !important; /* 선택만 살짝 채움 */
-}
-
-div[data-baseweb="button-group"] button[aria-pressed="false"]{
+  min-height: 30px !important;
   opacity: .85 !important;
 }
 
-/* ✅ divider(선) 간격도 줄이기 (원하면) */
+/* 선택된 것만 은은하게 채움 */
+div[data-baseweb="button-group"] button[aria-pressed="true"]{
+  background: rgba(120,120,120,0.10) !important;
+  border-color: rgba(120,120,120,0.22) !important;
+  opacity: 1 !important;
+}
+
+/* divider(선) 여백도 줄이기(원하면) */
 hr{
   margin: 10px 0 !important;
 }
@@ -1738,7 +1739,7 @@ st.markdown('<div class="control-title">품사</div>', unsafe_allow_html=True)
 pos_clicked = st.segmented_control(
     label="",
     options=POS_MODES,
-    format_func=lambda x: POS_MODE_MAP.get(x, x),  # ✅ 체크아이콘 제거(심플)
+    format_func=lambda x: POS_MODE_MAP.get(x, x),  # ✅ 체크아이콘 제거
     default=st.session_state.pos_mode,
     key="seg_pos_mode",
 )
@@ -1755,7 +1756,7 @@ st.markdown('<div class="control-title">유형</div>', unsafe_allow_html=True)
 clicked = st.segmented_control(
     label="",
     options=available_types,
-    format_func=lambda x: quiz_label_map.get(x, x),  # ✅ 체크아이콘 제거(심플)
+    format_func=lambda x: quiz_label_map.get(x, x),  # ✅ 체크아이콘 제거
     default=st.session_state.quiz_type,
     key="seg_qtype",
 )
@@ -1766,7 +1767,9 @@ if clicked and clicked != st.session_state.quiz_type:
     start_quiz_state(new_quiz, clicked, clear_wrongs=True)
     st.rerun()
 
-st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)  # ✅ divider 대신 얇은 여백
+# ✅ st.divider() 대신, 얇은 여백만 (원하면)
+st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+
 
 # ✅✅ 여기부터 추가/정리 (새 문제 + 초기화)
 cbtn1, cbtn2 = st.columns(2)
