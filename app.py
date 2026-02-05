@@ -1228,12 +1228,6 @@ def render_topcard():
             unsafe_allow_html=True,
         )
 
-    # ✅ 📌 내 대시보드: 텍스트 + 툴팁
-    with r_my:
-        if st.button("📌 내 대시보드", use_container_width=True, help="내 학습 기록/오답 TOP10 보기", key="btn_nav_my"):
-            st.session_state.page = "my"
-            st.rerun()
-
     # ✅ 관리자(아이콘 유지)
     with r_admin:
         if is_admin():
@@ -1242,6 +1236,12 @@ def render_topcard():
                 st.rerun()
         else:
             st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
+    
+    # ✅ 📌 내 대시보드: 텍스트 + 툴팁
+    with r_my:
+        if st.button("📌 내 대시보드", use_container_width=True, help="내 학습 기록/오답 TOP10 보기", key="btn_nav_my"):
+            st.session_state.page = "my"
+            st.rerun()
 
     # ✅ 로그아웃: 아이콘 + 툴팁 (상단바 느낌)
     with r_logout:
