@@ -352,55 +352,76 @@ def _load_pools_cached(csv_path_str: str, level: str):
     # 1) CSV 로드
     df = pd.read_csv(csv_path_str, **READ_KW)
 
-    # 2) 필수 컬럼 체크
+    # 2) 필수 컬럼 체크 (먼저!)
     required_cols = {"level", "pos", "jp_word", "reading", "meaning"}
     missing = required_cols - set(df.columns)
     if missing:
         raise ValueError(f"CSV 필수 컬럼 누락: {sorted(list(missing))}")
 
-    # 3) level 필터
-    pool = df[df["level"] == level].copy()
+    # 3) 정규화 (공백/대소문자 문제 방지)
+    df["level"] = df["level"].astype(str).str.strip().str.upper()
+    df["pos"]   = df["pos"].astype(str).str.strip().str.lower()
 
-    # 4) 품사별 분리
-    pool_i = pool[pool["pos"] == "i_adj"].copy()
+    level_norm = str(level).strip().upper()
+
+    # 4) level 필터 (정규화된 값으로!)
+    pool = df[df["level"] == level_norm].copy()
+
+    # 5) 품사별 분리
+    pool_i  = pool[pool["pos"] == "i_adj"].copy()
     pool_na = pool[pool["pos"] == "na_adj"].copy()
-    pool_v = pool[pool["pos"] == "verb"].copy()      
+    pool_v  = pool[pool["pos"] == "verb"].copy()
 
-    # 5) reading용(표기 없는 단어 제거), meaning용(전체 허용)
-    pool_i_reading = pool_i[pool_i["jp_word"].notna() & (pool_i["jp_word"].astype(str).str.strip() != "")].copy()
+    # 6) reading용(표기 없는 단어 제거), meaning용(전체 허용)
+    def _has_jp_word(x: pd.DataFrame) -> pd.DataFrame:
+        return x[x["jp_word"].notna() & (x["jp_word"].astype(str).str.strip() != "")].copy()
+
+    pool_i_reading = _has_jp_word(pool_i)
     pool_i_meaning = pool_i.copy()
 
-    pool_na_reading = pool_na[pool_na["jp_word"].notna() & (pool_na["jp_word"].astype(str).str.strip() != "")].copy()
+    pool_na_reading = _has_jp_word(pool_na)
     pool_na_meaning = pool_na.copy()
 
-    pool_v_reading = pool_v[pool_v["jp_word"].notna() & (pool_v["jp_word"].astype(str).str.strip() != "")].copy()
+    pool_v_reading = _has_jp_word(pool_v)
     pool_v_meaning = pool_v.copy()
 
-    return pool, pool_i, pool_i_reading, pool_i_meaning, pool_na, pool_na_reading, pool_na_meaning, pool_v, pool_v_reading, pool_v_meaning
-  
+    # ✅ 캐시 함수 안에서는 UI 출력(st.caption) 하지 않는 걸 추천
+    return (
+        pool,
+        pool_i,  pool_i_reading,  pool_i_meaning,
+        pool_na, pool_na_reading, pool_na_meaning,
+        pool_v,  pool_v_reading,  pool_v_meaning,
+    )
+
 def ensure_pools_ready():
     global pool, pool_i, pool_i_reading, pool_i_meaning
     global pool_na, pool_na_reading, pool_na_meaning
-    global pool_v, pool_v_reading, pool_v_meaning   # ✅ 추가
+    global pool_v, pool_v_reading, pool_v_meaning
 
-    globals_ok = all(
-        (name in globals()) and (globals().get(name) is not None)
-        for name in (
-            "pool","pool_i","pool_i_reading","pool_i_meaning",
-            "pool_na","pool_na_reading","pool_na_meaning"
-            "pool_v","pool_v_reading","pool_v_meaning",
-        )
+    # ✅ globals_ok: 쉼표 누락 버그 수정
+    required_names = (
+        "pool","pool_i","pool_i_reading","pool_i_meaning",
+        "pool_na","pool_na_reading","pool_na_meaning",
+        "pool_v","pool_v_reading","pool_v_meaning",
     )
+    globals_ok = all((name in globals()) and (globals().get(name) is not None) for name in required_names)
 
     if st.session_state.get("pool_ready") and globals_ok:
         return
 
     try:
-        pool, pool_i, pool_i_reading, pool_i_meaning, pool_na, pool_na_reading, pool_na_meaning, pool_v, pool_v_reading, pool_v_meaning = _load_pools_cached(str(CSV_PATH), LEVEL)
+        (
+            pool,
+            pool_i,  pool_i_reading,  pool_i_meaning,
+            pool_na, pool_na_reading, pool_na_meaning,
+            pool_v,  pool_v_reading,  pool_v_meaning,
+        ) = _load_pools_cached(str(CSV_PATH), LEVEL)
+
     except Exception as e:
         st.error(f"단어 데이터 로드 실패: {e}")
         st.stop()
 
+    # ✅ 기본(형용사) 부족은 앱의 기본 기능이 깨지는 거라서 즉시 stop 유지
     if len(pool_i) < N:
         st.error(f"い형용사 단어가 부족합니다: pool={len(pool_i)}")
         st.stop()
@@ -409,10 +430,13 @@ def ensure_pools_ready():
         st.error(f"な형용사 단어가 부족합니다: pool={len(pool_na)}")
         st.stop()
 
-    if len(pool_v) < N:
-        st.error(f"동사 단어가 부족합니다: pool={len(pool_verb)}")
-        st.stop()
-      
+    # ✅ 동사 부족은 '동사 탭을 눌렀을 때만' 막기
+    #    (동사 안 쓰면 앱은 정상 동작해야 UX 좋음)
+    if st.session_state.get("pos_mode") == "verb":
+        if len(pool_v) < N:
+            st.error(f"동사 단어가 부족합니다: pool={len(pool_v)}")
+            st.stop()
+
     st.session_state["pool_ready"] = True
 
 # ============================================================
