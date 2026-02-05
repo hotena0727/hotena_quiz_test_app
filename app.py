@@ -1477,11 +1477,6 @@ def make_question(row: pd.Series, qtype: str, base_pool_for_reading: pd.DataFram
         "qtype": qtype,
     }
 
-def make_question(row: pd.Series, qtype: str, base_pool_for_reading: pd.DataFrame, distractor_pool: pd.DataFrame) -> dict:
-    ...
-    return {...}
-
-
 # ✅✅✅ [추가] 랜덤 N문항 생성 (세그먼트/새문제/세션초기화에서 공용)
 def build_quiz(qtype: str) -> list[dict]:
     ensure_pools_ready()
@@ -1584,6 +1579,38 @@ def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
         make_question(retry_df.iloc[i], qtype, base_for_distractor, base_for_distractor)
         for i in range(len(retry_df))
     ]
+
+        # --- 5) ✅ 실제 샘플링 + 문제 생성 + return (이게 빠져있었음) ---
+
+    # reading/kr2jp는 jp_word 없는 항목이 섞이면 불안정 → base_for_reading에도 동일한 필터 적용
+    if qtype in ["reading", "kr2jp"]:
+        if mastered:
+            bf = base_for_reading.copy()
+            key_series2 = (
+                bf["jp_word"].astype(str).str.strip().replace({"": None})
+                .fillna(bf["reading"].astype(str).str.strip())
+            )
+            base_for_reading_filtered = bf[~key_series2.isin(mastered)].copy()
+        else:
+            base_for_reading_filtered = base_for_reading
+
+        # 혹시 필터 후 부족하면 fallback
+        if len(base_for_reading_filtered) < N:
+            base_for_reading_filtered = base_for_reading
+
+        sampled = base_for_reading_filtered.sample(n=N, replace=False).reset_index(drop=True)
+        base_for_q = base_for_reading  # 보기(오답) 풀
+        dist_for_q = distractor_pool   # 뜻/보기 섞는 풀
+
+    else:
+        # meaning은 base_filtered에서 샘플링
+        sampled = base_filtered.sample(n=N, replace=False).reset_index(drop=True)
+        base_for_q = base_for_reading
+        dist_for_q = distractor_pool
+
+    quiz = [make_question(sampled.iloc[i], qtype, base_for_q, dist_for_q) for i in range(N)]
+    return quiz
+
 # ============================================================
 # ✅ 라우팅 (함수 정의 후, 여기서만 화면 전환)
 # ============================================================
