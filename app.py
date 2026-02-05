@@ -342,12 +342,12 @@ def ensure_pools_ready():
         st.stop()
 
     if len(pool_i) < N:
-    st.error(f"い형용사 단어가 부족합니다: pool={len(pool_i)}")
-    st.stop()
+      st.error(f"い형용사 단어가 부족합니다: pool={len(pool_i)}")
+      st.stop()
 
-if len(pool_na) < N:
-    st.error(f"な형용사 단어가 부족합니다: pool={len(pool_na)}")
-    st.stop()
+    if len(pool_na) < N:
+      st.error(f"な형용사 단어가 부족합니다: pool={len(pool_na)}")
+      st.stop()
 
     st.session_state["pool_ready"] = True
 
