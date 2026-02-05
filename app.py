@@ -79,7 +79,7 @@ div[data-baseweb="button-group"]{
 
 div[data-baseweb="button-group"] button{
   border-radius: 999px !important;
-  padding: 10px 14px !important;
+  padding: 9px 12px !important;
   font-weight: 800 !important;
   border: 0 !important;
   background: transparent !important;
