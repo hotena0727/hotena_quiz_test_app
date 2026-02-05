@@ -1528,11 +1528,7 @@ def build_quiz(qtype: str) -> list[dict]:
     if len(base_filtered) < N:
         st.session_state.setdefault("mastery_done", {})
         st.session_state.mastery_done[qtype] = True
-
-        base_filtered = base  # fallback
-        if len(base_filtered) < N:
-            st.error(f"단어가 부족합니다. pos_mode={pos_mode}, pool={len(base_filtered)}, N={N}")
-            st.stop()
+        return []   # ✅ 여기서 끝! 문제 안 뿌림
 
     # --- 5) ✅ 실제 샘플링 + 문제 생성 + return (이게 반드시 있어야 함) ---
     if qtype in ["reading", "kr2jp"]:
