@@ -26,9 +26,9 @@ div.stButton > button {
 }
 
 /* 칼럼 사이 간격 */
-div[data-testid="stMarkdownContainer"] h3{
-  margin-top: 4px !important;
-  margin-bottom: 2px !important;   /* 제목 아래 여백 ↓ */
+div[data-testid="stMarkdownContainer"] h10{
+  margin-top: 10px !important;
+  margin-bottom: 8px !important;   /* 제목 아래 여백 ↓ */
 }
 
 :root{ --jp-rounded: "Noto Sans JP","Kosugi Maru","Hiragino Sans","Yu Gothic","Meiryo",sans-serif; }
@@ -41,59 +41,39 @@ label[data-baseweb="radio"] * {
 }
 
 /* ✅✅✅ 여기부터 추가: iOS Segmented Control 느낌 */
-/* ✅ Segmented 트레이 자체 여백/간격 팍 줄이기 */
 div[data-baseweb="button-group"]{
   background: rgba(120,120,120,0.12) !important;
-  padding: 3px !important;          /* 6 → 3 */
+  padding: 6px !important;
   border-radius: 999px !important;
   border: 1px solid rgba(120,120,120,0.18) !important;
-  gap: 3px !important;              /* 6 → 3 */
-  margin-top: 0px !important;
-  margin-bottom: 6px !important;    /* 14 → 6 (다음 섹션과 붙는 느낌 줄임) */
+  gap: 6px !important;
+  margin-top: 0px !important;      /* 제목-버튼 사이 ↓ */
+  margin-bottom: 14px !important;  /* 버튼-다음 섹션 사이 ↑ */
 }
 
-/* ✅ 버튼 자체도 컴팩트하게 */
 div[data-baseweb="button-group"] button{
   border-radius: 999px !important;
-  padding: 7px 10px !important;     /* 10 14 → 7 10 */
+  padding: 10px 14px !important;
   font-weight: 800 !important;
   border: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
   white-space: nowrap !important;
-  line-height: 1.05 !important;
-  min-height: 34px !important;      /* 과한 높이 방지 */
 }
 
-/* 선택된 버튼 */
 div[data-baseweb="button-group"] button[aria-pressed="true"]{
   background: rgba(255,255,255,0.92) !important;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.08) !important; /* 그림자도 약간 줄임 */
+  box-shadow: 0 6px 14px rgba(0,0,0,0.10) !important;
 }
 
-/* 선택 안된 버튼 */
 div[data-baseweb="button-group"] button[aria-pressed="false"]{
   opacity: 0.85 !important;
 }
 
-/* ✅ caption(현재 선택:)도 더 붙게 */
-div[data-testid="stCaptionContainer"]{
-  margin-top: -8px !important;
-  margin-bottom: 2px !important;
-}
-
-/* (선택) divider(선)도 간격 줄이기 */
-hr{
-  margin-top: 6px !important;
-  margin-bottom: 6px !important;
-}
-
-/* 모바일 */
 @media (max-width: 480px){
   div[data-baseweb="button-group"] button{
-    padding: 6px 9px !important;
-    font-size: 13px !important;
-    min-height: 32px !important;
+    padding: 9px 12px !important;
+    font-size: 14px !important;
   }
 }
 /* ✅✅✅ 여기까지 추가 끝 */
