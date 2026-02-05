@@ -1275,8 +1275,9 @@ def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
         base = pool_v
         base_for_distractor = pool_v
     else:
-        base = pd.concat([pool_i, pool_na], ignore_index=True)
-        base_for_distractor = base  # ✅ concat 그대로 재사용
+        base = pd.concat([pool_i, pool_na, pool_v], ignore_index=True)
+        base_for_distractor = base
+
 
     retry_df = base[(base["jp_word"].isin(wrong_words)) | (base["reading"].isin(wrong_words))].copy()
 
@@ -1714,32 +1715,93 @@ def _safe_build_quiz_after_reset(qtype: str) -> list:
         return build_quiz(qtype)
     except Exception:
         return []
-  
+
 def build_quiz(qtype: str) -> list:
     ensure_pools_ready()
 
     pos_mode = st.session_state.get("pos_mode", "i_adj")
 
+    # ------------------------------------------------------------
+    # ✅ 품사별 출제 풀 선택
+    # ------------------------------------------------------------
     if pos_mode == "i_adj":
         base_reading = pool_i_reading
         base_meaning = pool_i_meaning
         base_for_distractor = pool_i
-        
+
     elif pos_mode == "na_adj":
         base_reading = pool_na_reading
         base_meaning = pool_na_meaning
         base_for_distractor = pool_na
 
-    elif pos_mode == "verb":   # ✅ 추가
+    elif pos_mode == "verb":
         base_reading = pool_v_reading
         base_meaning = pool_v_meaning
         base_for_distractor = pool_v
-    
-    else:
-        base_reading = pd.concat([pool_i_reading, pool_na_reading], ignore_index=True)
-        base_meaning = pd.concat([pool_i_meaning, pool_na_meaning], ignore_index=True)
-        base_for_distractor = pd.concat([pool_i, pool_na], ignore_index=True)
 
+    else:
+        # ✅ 혼합: 동사6 / い2 / な2 (총 10문항 기준)
+        base_for_distractor = pd.concat([pool_i, pool_na, pool_v], ignore_index=True)
+
+        if qtype == "reading":
+            src_i, src_na, src_v = pool_i_reading, pool_na_reading, pool_v_reading
+        else:
+            src_i, src_na, src_v = pool_i_meaning, pool_na_meaning, pool_v_meaning
+
+        # kr2jp는 jp_word 필수
+        if qtype == "kr2jp":
+            def _jp_ok(df: pd.DataFrame) -> pd.DataFrame:
+                return df[
+                    df["jp_word"].notna()
+                    & (df["jp_word"].astype(str).str.strip() != "")
+                ].copy()
+            src_i, src_na, src_v = _jp_ok(src_i), _jp_ok(src_na), _jp_ok(src_v)
+
+        want_v, want_i, want_na = 6, 2, 2
+
+        take_v  = min(want_v,  len(src_v))
+        take_i  = min(want_i,  len(src_i))
+        take_na = min(want_na, len(src_na))
+
+        parts = []
+        if take_v:  parts.append(src_v.sample(n=take_v))
+        if take_i:  parts.append(src_i.sample(n=take_i))
+        if take_na: parts.append(src_na.sample(n=take_na))
+
+        mixed = pd.concat(parts, ignore_index=True) if parts else pd.DataFrame(columns=src_i.columns)
+
+        # 부족하면 전체에서 남은 만큼 보충
+        all_pool = pd.concat([src_i, src_na, src_v], ignore_index=True).copy()
+        target_n = min(N, len(all_pool))
+
+        if len(mixed) < target_n and len(all_pool) > 0:
+            remain = target_n - len(mixed)
+
+            # 이미 뽑힌 행 제외(간단 키)
+            if len(mixed) > 0:
+                picked = set(
+                    (mixed["jp_word"].astype(str).str.strip() + "||" + mixed["reading"].astype(str).str.strip()).tolist()
+                )
+            else:
+                picked = set()
+
+            all_pool["_k"] = all_pool["jp_word"].astype(str).str.strip() + "||" + all_pool["reading"].astype(str).str.strip()
+            all_pool = all_pool[~all_pool["_k"].isin(picked)].drop(columns=["_k"])
+
+            if len(all_pool) > 0 and remain > 0:
+                extra_n = min(remain, len(all_pool))
+                mixed = pd.concat([mixed, all_pool.sample(n=extra_n)], ignore_index=True)
+
+        # 최종 셔플
+        mixed = mixed.sample(frac=1).reset_index(drop=True)
+
+        # 아래 공통 로직이 base_reading/base_meaning을 쓰므로 형태 맞춰줌
+        base_reading = mixed
+        base_meaning = mixed
+
+    # ------------------------------------------------------------
+    # ✅ 유형(qtype)별 base_pool 선택
+    # ------------------------------------------------------------
     if qtype == "reading":
         base_pool = base_reading
     elif qtype == "meaning":
@@ -1753,6 +1815,9 @@ def build_quiz(qtype: str) -> list:
         qtype = "meaning"
         base_pool = base_meaning
 
+    # ------------------------------------------------------------
+    # ✅ 맞힌 단어 제외
+    # ------------------------------------------------------------
     ensure_mastered_words_shape()
     mastered = st.session_state.mastered_words.get(qtype, set())
     if mastered:
@@ -1762,7 +1827,6 @@ def build_quiz(qtype: str) -> list:
 
     if len(base_pool) == 0:
         ensure_mastery_banner_shape()
-        # (여기 기존 처리 그대로 두되) 마지막에 st.stop()으로 마무리
         st.stop()
 
     take_n = min(N, len(base_pool))
