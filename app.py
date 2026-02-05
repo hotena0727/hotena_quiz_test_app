@@ -42,6 +42,13 @@ label[data-baseweb="radio"] * {
 </style>
 """, unsafe_allow_html=True)
 
+POS_MODE_MAP = {
+    "i_adj": "い형용사",
+    "na_adj": "な형용사",
+    "mix_adj": "혼합",
+}
+POS_MODES = ["i_adj", "na_adj", "mix_adj"]
+
 st.title(f"{POS_MODE_MAP.get(st.session_state.get('pos_mode','i_adj'))} 퀴즈")
 st.markdown('<div id="__TOP__"></div>', unsafe_allow_html=True)
 
@@ -263,13 +270,6 @@ quiz_label_for_table = {
 }
 QUIZ_TYPES_USER = ["reading", "meaning", "kr2jp"]                 # 일반 유저 , 3종은 뒤에 "kr2jp" 추가
 QUIZ_TYPES_ADMIN = ["reading", "meaning", "kr2jp"]       # 관리자만 3종
-
-POS_MODE_MAP = {
-    "i_adj": "い형용사",
-    "na_adj": "な형용사",
-    "mix_adj": "혼합",
-}
-POS_MODES = ["i_adj", "na_adj", "mix_adj"]
 
 # ============================================================
 # ✅ (추가) 어디 페이지에서든 pool/pool_i를 보장하는 Lazy Loader
