@@ -51,10 +51,12 @@ div[data-testid="stMarkdownContainer"] h4{
   line-height: 1;
   user-select: none;
   pointer-events: none;
-  padding-left: 2px;
-
+  padding-left: 0px;
+  margin: 0 !important;
+    
   /* ✅ 여기만 조절: +2~+4px 사이 추천 */
   transform: translateY(8px);
+  white-space: nowrap;
 }
 
 
@@ -1896,7 +1898,7 @@ colL, colR = st.columns(2, gap="small")
 
 # --- 왼쪽: 품사 ---
 with colL:
-    l1, r1 = st.columns([1.2, 8.8], vertical_alignment="center")
+    l1, r1 = st.columns([0.8, 9.2], vertical_alignment="center")
 
     with l1:
         st.markdown('<div class="seglabel">품사</div>', unsafe_allow_html=True)
@@ -1916,7 +1918,7 @@ with colL:
 
 # --- 오른쪽: 유형 ---
 with colR:
-    l2, r2 = st.columns([1.2, 8.8], vertical_alignment="center")
+    l2, r2 = st.columns([0.8, 9.2], vertical_alignment="center")
 
     with l2:
         st.markdown('<div class="seglabel">유형</div>', unsafe_allow_html=True)
