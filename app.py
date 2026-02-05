@@ -52,8 +52,11 @@ div[data-testid="stMarkdownContainer"] h4{
   user-select: none;
   pointer-events: none;
   padding-left: 2px;
-  transform: translateY(1px);
+
+  /* ✅ 여기만 조절: +2~+4px 사이 추천 */
+  transform: translateY(3px);
 }
+
 
 /* 일반 버튼(새문제/초기화 등) */
 div.stButton > button {
