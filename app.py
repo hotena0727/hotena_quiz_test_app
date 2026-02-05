@@ -1204,7 +1204,7 @@ else:
     # 필요하면 st.stop()
 
 # ============================================================
-# ✅ 상단 헤더 (카드형) - 개선: 내대시보드 텍스트+툴팁, 로그아웃 아이콘
+# ✅ 상단 헤더 (카드형) - 관리자 / 마이페이지 / 로그아웃
 # ============================================================
 def render_topcard():
     u = st.session_state.get("user")
@@ -1215,7 +1215,8 @@ def render_topcard():
 
     st.markdown('<div class="topcard">', unsafe_allow_html=True)
 
-    left, r_my, r_admin, r_logout = st.columns([6.2, 2.6, 1.2, 1.0], vertical_alignment="center")
+    # ✅ 순서: 관리자 / 마이페이지 / 로그아웃
+    left, r_admin, r_my, r_logout = st.columns([6.2, 1.2, 2.6, 1.0], vertical_alignment="center")
 
     with left:
         st.markdown(
@@ -1228,7 +1229,7 @@ def render_topcard():
             unsafe_allow_html=True,
         )
 
-    # ✅ 관리자(아이콘 유지)
+    # ✅ 관리자(아이콘)
     with r_admin:
         if is_admin():
             if st.button("📊", use_container_width=True, help="관리자 대시보드", key="btn_nav_admin"):
@@ -1236,14 +1237,14 @@ def render_topcard():
                 st.rerun()
         else:
             st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
-    
-    # ✅ 📌 내 대시보드: 텍스트 + 툴팁
+
+    # ✅ 마이페이지(기존 '내 대시보드' -> 이름 변경)
     with r_my:
-        if st.button("📌 내 대시보드", use_container_width=True, help="내 학습 기록/오답 TOP10 보기", key="btn_nav_my"):
+        if st.button("📌 마이페이지", use_container_width=True, help="내 학습 기록/오답 TOP10 보기", key="btn_nav_my"):
             st.session_state.page = "my"
             st.rerun()
 
-    # ✅ 로그아웃: 아이콘 + 툴팁 (상단바 느낌)
+    # ✅ 로그아웃(아이콘)
     with r_logout:
         st.markdown('<div class="iconbtn">', unsafe_allow_html=True)
         if st.button("🚪", use_container_width=True, help="로그아웃", key="btn_logout_top"):
