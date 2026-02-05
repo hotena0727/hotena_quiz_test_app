@@ -27,16 +27,20 @@ label[data-baseweb="radio"] * {
 }
 
 .seglabel{
+  display:inline-flex;
+  align-items:center;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(120,120,120,0.20);
+  background: rgba(120,120,120,0.08);
   font-weight: 900;
-  font-size: 14px;
-  opacity: .90;
-  letter-spacing: .2px;
-  line-height: 1;
-  user-select: none;          /* 드래그 방지 */
-  pointer-events: none;       /* 클릭/터치 무시 */
-  padding-left: 2px;
-  transform: translateY(1px); /* 세그먼트와 높이 미세 정렬 */
+  font-size: 13px;
+  opacity: .95;
+  user-select:none;
+  pointer-events:none;
 }
+
 
 
 /* ✅ 캡션(품사/유형) - 세그먼트에 딱 붙게 */
