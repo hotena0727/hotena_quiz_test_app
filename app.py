@@ -22,10 +22,10 @@ div.stButton > button {
   padding: 6px 10px !important;
   font-size: 13px !important;
   line-height: 1.1 !important;
-  white-space: nowrap !important;
+  white-space: nowrap !important;  /* ✅ 1줄 고정 */
 }
 
-/* 칼럼 사이 간격 */
+/* 칼럼 사이 간격을 살짝 줄여서 한 줄에 더 잘 들어가게 */
 div[data-testid="column"]{
   padding-left: 4px !important;
   padding-right: 4px !important;
@@ -39,46 +39,8 @@ div[data-baseweb="radio"] * ,
 label[data-baseweb="radio"] * {
   font-family: var(--jp-rounded) !important;
 }
-
-/* ✅✅✅ 여기부터 추가: iOS Segmented Control 느낌 */
-div[data-baseweb="button-group"]{
-  background: rgba(120,120,120,0.12) !important;
-  padding: 6px !important;
-  border-radius: 999px !important;
-  border: 1px solid rgba(120,120,120,0.18) !important;
-  gap: 6px !important;
-}
-
-div[data-baseweb="button-group"] button{
-  border-radius: 999px !important;
-  padding: 10px 14px !important;
-  font-weight: 800 !important;
-  border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  white-space: nowrap !important;
-}
-
-div[data-baseweb="button-group"] button[aria-pressed="true"]{
-  background: rgba(255,255,255,0.92) !important;
-  box-shadow: 0 6px 14px rgba(0,0,0,0.10) !important;
-}
-
-div[data-baseweb="button-group"] button[aria-pressed="false"]{
-  opacity: 0.85 !important;
-}
-
-@media (max-width: 480px){
-  div[data-baseweb="button-group"] button{
-    padding: 9px 12px !important;
-    font-size: 14px !important;
-  }
-}
-/* ✅✅✅ 여기까지 추가 끝 */
-
 </style>
 """, unsafe_allow_html=True)
-
 
 POS_MODE_MAP = {
     "i_adj": "い형용사",
@@ -1744,7 +1706,7 @@ st.markdown("### 품사 선택")
 pos_clicked = st.segmented_control(
     label="",
     options=POS_MODES,
-    format_func=lambda x: POS_MODE_MAP.get(x, x),
+    format_func=lambda x: ("✅ " + POS_MODE_MAP.get(x, x)) if x == st.session_state.pos_mode else POS_MODE_MAP.get(x, x),
     default=st.session_state.pos_mode,
     key="seg_pos_mode",
 )
@@ -1756,6 +1718,7 @@ if pos_clicked and pos_clicked != st.session_state.pos_mode:
     start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
     st.rerun()
 
+st.caption(f"현재 선택: **{POS_MODE_MAP.get(st.session_state.pos_mode)}**")
 st.divider()
 
 st.markdown("### 출제 유형")
