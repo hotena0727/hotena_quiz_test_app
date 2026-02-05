@@ -1112,7 +1112,9 @@ def render_naver_talk():
     )
 
 # ============================================================
-# ✅ 앱 시작: refresh → 로그인 강제 → progress 복원 → (pos/quiz 고정) → title → profile upsert → 출석 체크
+# ✅ 앱 시작: refresh → 로그인 강제 → progress 복원 → 기본값 보정 → title
+#    + (중요) available_types 항상 정의
+#    + (중요) 프로필/출석은 라우팅 전에 실행
 # ============================================================
 ok = refresh_session_from_cookie_if_needed(force=False)
 
@@ -1128,6 +1130,13 @@ user_email = getattr(user, "email", None) or st.session_state.get("login_email")
 
 sb_authed = get_authed_sb()
 
+# ✅✅ (1) available_types는 무조건 먼저 확보 (아래 세션 초기화/세그먼트에서 계속 씀)
+#    - is_admin() 내부에서 sb_authed를 요구하므로, sb_authed가 None이면 기본 3종으로 fallback
+try:
+    available_types = get_available_quiz_types() if sb_authed is not None else QUIZ_TYPES_USER
+except Exception:
+    available_types = QUIZ_TYPES_USER
+
 if sb_authed is not None:
     # ✅ 1) progress 복원 (pos_mode/quiz_type가 여기서 들어옴)
     if not st.session_state.get("progress_restored"):
@@ -1138,18 +1147,18 @@ if sb_authed is not None:
         finally:
             st.session_state.progress_restored = True
 
-    # ✅ 2) 복원 이후에만 기본값 보정 (복원값이 있으면 그대로 유지)
-    if "pos_mode" not in st.session_state or st.session_state.get("pos_mode") not in POS_MODES:
-        st.session_state.pos_mode = "i_adj"
+# ✅ 2) 복원 이후에만 기본값 보정 (복원값이 있으면 그대로 유지)
+if "pos_mode" not in st.session_state or st.session_state.get("pos_mode") not in POS_MODES:
+    st.session_state.pos_mode = "i_adj"
 
-    available_types = get_available_quiz_types()
-    if "quiz_type" not in st.session_state or st.session_state.get("quiz_type") not in available_types:
-        st.session_state.quiz_type = available_types[0]
+if "quiz_type" not in st.session_state or st.session_state.get("quiz_type") not in available_types:
+    st.session_state.quiz_type = available_types[0]
 
-    # ✅ 3) title은 “복원/보정” 끝난 다음에 출력 (이제 안 튐)
-    st.title(f"{POS_MODE_MAP.get(st.session_state.pos_mode)} 퀴즈")
+# ✅ 3) title은 “복원/보정” 끝난 다음에 출력
+st.title(f"{POS_MODE_MAP.get(st.session_state.pos_mode)} 퀴즈")
 
-    # ✅ 4) 프로필/출석
+# ✅✅ (2) 프로필 upsert / 출석 체크는 라우팅 전에 1번만
+if sb_authed is not None:
     ensure_profile(sb_authed, user)
 
     att = mark_attendance_once(sb_authed)
@@ -1159,7 +1168,30 @@ if sb_authed is not None:
 
 else:
     st.caption("세션 토큰이 없습니다. (sb_authed=None) 다시 로그인해 주세요.")
-    # st.stop()
+    # 필요하면 st.stop()
+
+# ============================================================
+# ✅ 상단 헤더 (카드형)
+# ============================================================
+if "page" not in st.session_state:
+    st.session_state.page = "quiz"
+
+# ... (상단 카드 렌더링 동일)
+
+# ============================================================
+# ✅ 라우팅 (여기서는 '화면만' 바꾼다)
+# ============================================================
+if st.session_state.page == "admin":
+    if not is_admin():
+        st.session_state.page = "quiz"
+        st.warning("관리자 권한이 없습니다.")
+        st.rerun()
+    render_admin_dashboard()
+    st.stop()
+
+if st.session_state.page == "my":
+    render_my_dashboard()
+    st.stop()
 
 # ============================================================
 # ✅ 상단: 오늘의 목표(루틴) + 연속 출석 배지
@@ -1680,65 +1712,7 @@ def render_my_dashboard():
         st.caption(f"정답률 {pct:.0f}%")
         st.write("")
 
-# ============================================================
-# ✅ 상단 헤더 (카드형)
-# ============================================================
-if "page" not in st.session_state:
-    st.session_state.page = "quiz"
 
-# 카드 시작
-st.markdown('<div class="topcard">', unsafe_allow_html=True)
-
-# 상단 문구
-st.markdown('<div class="tophello">환영합니다 🙂</div>', unsafe_allow_html=True)
-
-# 버튼 줄
-colA, colB, colC, colD = st.columns([3, 3, 2, 3])
-
-with colA:
-    if st.button("📌 나의 기록", use_container_width=True, key="btn_go_my"):
-        st.session_state.page = "my"
-        st.rerun()
-
-with colB:
-    if is_admin():
-        if st.button("📊 관리자", use_container_width=True, key="btn_go_admin"):
-            st.session_state.page = "admin"
-            st.rerun()
-    else:
-        # 관리자 버튼 자리 비워두면 균형이 깨져서 빈 칸용 캡션(또는 st.empty()) 처리
-        st.empty()
-
-with colC:
-    # (선택) 자리 맞춤용 빈 칸
-    st.empty()
-
-with colD:
-    if st.button("🚪 로그아웃", use_container_width=True, key="btn_logout"):
-        try:
-            sb.auth.sign_out()
-        except Exception:
-            pass
-        clear_auth_everywhere()
-        st.rerun()
-
-# 카드 끝
-st.markdown("</div>", unsafe_allow_html=True)
-
-# ============================================================
-# ✅ 라우팅
-# ============================================================
-if st.session_state.page == "admin":
-    if not is_admin():
-        st.session_state.page = "quiz"
-        st.warning("관리자 권한이 없습니다.")
-        st.rerun()
-    render_admin_dashboard()
-    st.stop()
-
-if st.session_state.page == "my":
-    render_my_dashboard()
-    st.stop()
 
 ensure_pools_ready()
 
