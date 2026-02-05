@@ -26,9 +26,9 @@ div.stButton > button {
 }
 
 /* 칼럼 사이 간격 */
-div[data-testid="column"]{
-  padding-left: 4px !important;
-  padding-right: 4px !important;
+div[data-testid="stMarkdownContainer"] h3{
+  margin-top: 10px !important;
+  margin-bottom: 8px !important;   /* 제목 아래 여백 ↓ */
 }
 
 :root{ --jp-rounded: "Noto Sans JP","Kosugi Maru","Hiragino Sans","Yu Gothic","Meiryo",sans-serif; }
@@ -47,6 +47,8 @@ div[data-baseweb="button-group"]{
   border-radius: 999px !important;
   border: 1px solid rgba(120,120,120,0.18) !important;
   gap: 6px !important;
+  margin-top: 0px !important;      /* 제목-버튼 사이 ↓ */
+  margin-bottom: 14px !important;  /* 버튼-다음 섹션 사이 ↑ */
 }
 
 div[data-baseweb="button-group"] button{
