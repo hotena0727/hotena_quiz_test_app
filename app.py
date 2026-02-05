@@ -29,7 +29,7 @@ label[data-baseweb="radio"] * {
 /* ✅ 캡션(품사/유형) - 세그먼트에 딱 붙게 */
 .tabcap{
   font-weight: 900;
-  font-size: 15px;
+  font-size: 18px;
   opacity: 1;
   margin: 0 0 4px 0 !important;
 }
