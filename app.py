@@ -1493,12 +1493,11 @@ def build_quiz(qtype: str) -> list[dict]:
     else:  # mix_adj
         base = pd.concat([pool_i, pool_na, pool_v], ignore_index=True)
 
-    # --- 2) 유형에 따라 "reading/kr2jp용 풀" 선택 ---
-    # reading / kr2jp 는 jp_word 없는 항목이 섞이면 문제 생성이 불안정할 수 있어서 *_reading 풀 사용
+    # --- 2) 유형에 따라 base_for_reading / distractor_pool 결정 ---
     if qtype in ["reading", "kr2jp"]:
         if pos_mode == "i_adj":
             base_for_reading = pool_i_reading
-            distractor_pool = pool_i  # 뜻/보기 섞을 때는 전체도 OK
+            distractor_pool = pool_i
         elif pos_mode == "na_adj":
             base_for_reading = pool_na_reading
             distractor_pool = pool_na
@@ -1509,12 +1508,12 @@ def build_quiz(qtype: str) -> list[dict]:
             base_for_reading = pd.concat([pool_i_reading, pool_na_reading, pool_v_reading], ignore_index=True)
             distractor_pool = pd.concat([pool_i, pool_na, pool_v], ignore_index=True)
     else:
-        # meaning은 jp_word 없어도 돌아가므로 base 그대로
         base_for_reading = base
         distractor_pool = base
 
-    # --- 3) ✅ '맞힌 단어 제외' 반영 (유형별) ---
+    # --- 3) '맞힌 단어 제외' 반영(유형별) ---
     mastered = st.session_state.get("mastered_words", {}).get(qtype, set())
+
     if mastered:
         base_filtered = base.copy()
         key_series = (
@@ -1525,10 +1524,8 @@ def build_quiz(qtype: str) -> list[dict]:
     else:
         base_filtered = base
 
-    # --- 4) 샘플링 가능 여부 체크 ---
+    # --- 4) 샘플링 가능 여부 체크 + fallback ---
     if len(base_filtered) < N:
-        # 전부 다 맞혀서 남은 단어가 없거나, 제외 후 부족한 경우
-        # → 안내 플래그만 켜고, 전체 풀로 다시 생성(앱이 멈추지 않게)
         st.session_state.setdefault("mastery_done", {})
         st.session_state.mastery_done[qtype] = True
 
@@ -1536,6 +1533,34 @@ def build_quiz(qtype: str) -> list[dict]:
         if len(base_filtered) < N:
             st.error(f"단어가 부족합니다. pos_mode={pos_mode}, pool={len(base_filtered)}, N={N}")
             st.stop()
+
+    # --- 5) ✅ 실제 샘플링 + 문제 생성 + return (이게 반드시 있어야 함) ---
+    if qtype in ["reading", "kr2jp"]:
+        # reading/kr2jp는 jp_word 없는 항목이 섞이면 불안정 → base_for_reading에도 동일한 필터 적용
+        if mastered:
+            bf = base_for_reading.copy()
+            key_series2 = (
+                bf["jp_word"].astype(str).str.strip().replace({"": None})
+                .fillna(bf["reading"].astype(str).str.strip())
+            )
+            base_for_reading_filtered = bf[~key_series2.isin(mastered)].copy()
+        else:
+            base_for_reading_filtered = base_for_reading
+
+        if len(base_for_reading_filtered) < N:
+            base_for_reading_filtered = base_for_reading
+
+        sampled = base_for_reading_filtered.sample(n=N, replace=False).reset_index(drop=True)
+        base_for_q = base_for_reading
+        dist_for_q = distractor_pool
+    else:
+        sampled = base_filtered.sample(n=N, replace=False).reset_index(drop=True)
+        base_for_q = base_for_reading
+        dist_for_q = distractor_pool
+
+    quiz = [make_question(sampled.iloc[i], qtype, base_for_q, dist_for_q) for i in range(N)]
+    return quiz
+
 
 
 def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
