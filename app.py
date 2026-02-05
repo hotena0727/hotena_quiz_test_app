@@ -26,23 +26,6 @@ label[data-baseweb="radio"] * {
   font-family: var(--jp-rounded) !important;
 }
 
-.seglabel{
-  display:inline-flex;
-  align-items:center;
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(120,120,120,0.20);
-  background: rgba(120,120,120,0.08);
-  font-weight: 900;
-  font-size: 13px;
-  opacity: .95;
-  user-select:none;
-  pointer-events:none;
-}
-
-
-
 /* ✅ 캡션(품사/유형) - 세그먼트에 딱 붙게 */
 .tabcap{
   font-weight: 900;
