@@ -1706,10 +1706,52 @@ st.markdown("### 품사 선택")
 pos_clicked = st.segmented_control(
     label="",
     options=POS_MODES,
-    format_func=lambda x: ("✅ " + POS_MODE_MAP.get(x, x)) if x == st.session_state.pos_mode else POS_MODE_MAP.get(x, x),
+    format_func=lambda x: POS_MODE_MAP.get(x, x),
     default=st.session_state.pos_mode,
     key="seg_pos_mode",
 )
+
+<style>
+/* ✅ iOS Segmented Control 느낌 (둥글 + 선택만 채움) */
+div[data-baseweb="button-group"]{
+  background: rgba(120,120,120,0.12) !important; /* 바탕 트레이 */
+  padding: 6px !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(120,120,120,0.18) !important;
+  gap: 6px !important;
+}
+
+/* 버튼 공통 */
+div[data-baseweb="button-group"] button{
+  border-radius: 999px !important;
+  padding: 10px 14px !important;
+  font-weight: 800 !important;
+  border: 0 !important;               /* 버튼 테두리 제거 */
+  background: transparent !important;  /* 기본은 투명 */
+  box-shadow: none !important;
+  white-space: nowrap !important;
+}
+
+/* 선택된 버튼: 채워짐 + 살짝 그림자 */
+div[data-baseweb="button-group"] button[aria-pressed="true"]{
+  background: rgba(255,255,255,0.92) !important;  /* 선택 배경(라이트 느낌) */
+  box-shadow: 0 6px 14px rgba(0,0,0,0.10) !important;
+}
+
+/* 선택 안된 버튼: 글자만 */
+div[data-baseweb="button-group"] button[aria-pressed="false"]{
+  opacity: 0.85 !important;
+}
+
+/* (선택) 모바일에서 조금 더 컴팩트하게 */
+@media (max-width: 480px){
+  div[data-baseweb="button-group"] button{
+    padding: 9px 12px !important;
+    font-size: 14px !important;
+  }
+}
+</style>
+
 
 if pos_clicked and pos_clicked != st.session_state.pos_mode:
     st.session_state.pos_mode = pos_clicked
@@ -1718,7 +1760,6 @@ if pos_clicked and pos_clicked != st.session_state.pos_mode:
     start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
     st.rerun()
 
-st.caption(f"현재 선택: **{POS_MODE_MAP.get(st.session_state.pos_mode)}**")
 st.divider()
 
 st.markdown("### 출제 유형")
