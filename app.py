@@ -1269,8 +1269,14 @@ if st.session_state.page == "admin":
     render_admin_dashboard()
     st.stop()
 
+import traceback  # 파일 상단 import들 근처에 1번만 추가
+
 if st.session_state.page == "my":
-    render_my_dashboard()
+    try:
+        render_my_dashboard()
+    except Exception as e:
+        st.error("마이페이지에서 예외가 발생했습니다. 아래 Traceback의 'NameError: name ... is not defined'를 확인해 주세요.")
+        st.code(traceback.format_exc())
     st.stop()
 
 # ============================================================
@@ -1549,7 +1555,7 @@ def render_my_dashboard():
 
     hist = pd.DataFrame(res.data).copy()
     hist["created_at"] = to_kst_naive(hist["created_at"])
-    hist["유형"] = hist["pos_mode"].map(lambda x: quiz_label_for_table.get(x, x))
+    hist["유형"] = hist["pos_mode"].map(lambda x: qlabel_table.get(x, x))
     hist["정답률"] = (hist["score"] / hist["quiz_len"]).fillna(0.0)
 
     avg_rate = float(hist["정답률"].mean() * 100)
@@ -1559,7 +1565,7 @@ def render_my_dashboard():
 
     c1, c2, c3 = st.columns(3)
     c1.metric("최근 평균(최대 50회)", f"{avg_rate:.0f}%")
-    c2.metric("최고 점수", f"{best} / {N}")
+    c2.metric("최고 점수", f"{best} / {n_local}")
     c3.metric("최근 점수", f"{last_score} / {last_total}")
 
     st.divider()
