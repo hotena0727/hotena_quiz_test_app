@@ -10,6 +10,19 @@ from collections import Counter
 # ============================================================
 # ✅ Streamlit 기본 설정 (최상단)
 # ============================================================
+def main():
+    # ✅ 여기부터 기존 코드 전부를 넣기
+    ...
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception:
+        import traceback
+        st.error("❌ 앱이 중간에서 죽었습니다. 아래 에러가 원인입니다.")
+        st.code(traceback.format_exc())
+        st.stop()
+
 st.set_page_config(page_title="JLPT Quiz", layout="centered")
 st.markdown("""
 <link rel="preconnect" href="https://fonts.googleapis.com">
