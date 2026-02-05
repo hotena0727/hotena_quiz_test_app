@@ -40,51 +40,45 @@ label[data-baseweb="radio"] * {
   font-family: var(--jp-rounded) !important;
 }
 
-/* ✅ 카카오톡 느낌 Segmented Control (노란 트레이 + 선택만 선명) */
+/* ✅✅✅ 여기부터 추가: iOS Segmented Control 느낌 */
 div[data-baseweb="button-group"]{
-  background: rgba(254, 229, 0, 0.35) !important;  /* 카톡 노랑 트레이 */
+  background: rgba(120,120,120,0.12) !important;
   padding: 6px !important;
   border-radius: 999px !important;
-  border: 1px solid rgba(0,0,0,0.10) !important;
+  border: 1px solid rgba(120,120,120,0.18) !important;
   gap: 6px !important;
 }
 
-/* 버튼 공통 */
 div[data-baseweb="button-group"] button{
   border-radius: 999px !important;
   padding: 10px 14px !important;
-  font-weight: 900 !important;
+  font-weight: 800 !important;
   border: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
   white-space: nowrap !important;
-  color: rgba(0,0,0,0.75) !important; /* 기본 글자 */
 }
 
-/* ✅ 선택된 버튼: 카톡 노랑 꽉 채움 + 진한 글자 */
 div[data-baseweb="button-group"] button[aria-pressed="true"]{
-  background: rgba(254, 229, 0, 0.95) !important; /* 카톡 노랑 */
-  color: rgba(0,0,0,0.90) !important;
-  box-shadow: 0 8px 18px rgba(0,0,0,0.15) !important;
+  background: rgba(255,255,255,0.92) !important;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.10) !important;
 }
 
-/* 선택 안된 버튼 */
 div[data-baseweb="button-group"] button[aria-pressed="false"]{
-  opacity: 0.9 !important;
+  opacity: 0.85 !important;
 }
 
-/* (선택) 모바일에서 살짝 컴팩트 */
 @media (max-width: 480px){
   div[data-baseweb="button-group"] button{
     padding: 9px 12px !important;
     font-size: 14px !important;
   }
 }
-
 /* ✅✅✅ 여기까지 추가 끝 */
 
 </style>
 """, unsafe_allow_html=True)
+
 
 
 POS_MODE_MAP = {
@@ -1762,9 +1756,6 @@ if pos_clicked and pos_clicked != st.session_state.pos_mode:
     new_quiz = build_quiz(st.session_state.quiz_type)  # 현재 유형 유지
     start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
     st.rerun()
-
-st.caption(f"현재 선택: **{POS_MODE_MAP.get(st.session_state.pos_mode)}**")
-st.divider()
 
 st.markdown("### 출제 유형")
 
