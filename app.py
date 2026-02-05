@@ -159,6 +159,10 @@ POS_MODES = ["i_adj", "na_adj", "verb", "mix_adj"]
 
 st.markdown('<div id="__TOP__"></div>', unsafe_allow_html=True)
 
+def mastery_key(qtype: str | None = None, pos_mode: str | None = None) -> str:
+    qt = qtype or st.session_state.get("quiz_type", "reading")
+    pm = pos_mode or st.session_state.get("pos_mode", "i_adj")
+
 def scroll_to_top(nonce: int = 0):
     components.html(
         f"""
@@ -487,31 +491,31 @@ def ensure_mastered_words_shape():
         st.session_state.mastered_words = {}
 
     types = QUIZ_TYPES_ADMIN if is_admin() else QUIZ_TYPES_USER
-    for k in types:
-        st.session_state.mastered_words.setdefault(k, set())
+    for pm in POS_MODES:
+        for qt in types:
+            k = f"{pm}|{qt}"
+            st.session_state.mastered_words.setdefault(k, set())
 
-
-# ✅✅✅ [추가] "완벽합니다" 메시지를 유형별로 1번만 띄우기 위한 플래그
 def ensure_mastery_banner_shape():
-    # ✅ 유형별 "배너 1회만" 플래그
     if "mastery_banner_shown" not in st.session_state or not isinstance(st.session_state.mastery_banner_shown, dict):
         st.session_state.mastery_banner_shown = {}
 
-    # ✅ 유형별 "정복 완료" 플래그 (유형 밑 안내용)
     if "mastery_done" not in st.session_state or not isinstance(st.session_state.mastery_done, dict):
         st.session_state.mastery_done = {}
 
     types = QUIZ_TYPES_ADMIN if is_admin() else QUIZ_TYPES_USER
-    for t in types:
-        st.session_state.mastery_banner_shown.setdefault(t, False)
-        st.session_state.mastery_done.setdefault(t, False)
+    for pm in POS_MODES:
+        for qt in types:
+            k = f"{pm}|{qt}"
+            st.session_state.mastery_banner_shown.setdefault(k, False)
+            st.session_state.mastery_done.setdefault(k, False)
 
-    # ✅ 유형별 mastered_words
     if "mastered_words" not in st.session_state or not isinstance(st.session_state.mastered_words, dict):
         st.session_state.mastered_words = {}
+    for pm in POS_MODES:
+        for qt in types:
+            st.session_state.mastered_words.setdefault(f"{pm}|{qt}", set())
 
-    for k in types:
-        st.session_state.mastered_words.setdefault(k, set())
 # ============================================================
 # ✅ (중요) 위젯 잔상(q_...) 완전 제거 유틸
 # ============================================================
@@ -1512,7 +1516,9 @@ def build_quiz(qtype: str) -> list[dict]:
         distractor_pool = base
 
     # --- 3) '맞힌 단어 제외' 반영(유형별) ---
-    mastered = st.session_state.get("mastered_words", {}).get(qtype, set())
+    k = mastery_key(qtype=qtype, pos_mode=st.session_state.get("pos_mode"))
+    mastered = st.session_state.get("mastered_words", {}).get(k, set())
+  
 
     if mastered:
         base_filtered = base.copy()
@@ -1527,8 +1533,9 @@ def build_quiz(qtype: str) -> list[dict]:
     # --- 4) 샘플링 가능 여부 체크 + fallback ---
     if len(base_filtered) < N:
         st.session_state.setdefault("mastery_done", {})
-        st.session_state.mastery_done[qtype] = True
-        return []   # ✅ 여기서 끝! 문제 안 뿌림
+        st.session_state.mastery_done[k] = True
+        return []
+
 
     # --- 5) ✅ 실제 샘플링 + 문제 생성 + return (이게 반드시 있어야 함) ---
     if qtype in ["reading", "kr2jp"]:
@@ -1733,8 +1740,8 @@ if "total_counter" not in st.session_state:
 if "quiz" not in st.session_state:
     st.session_state.quiz = build_quiz(st.session_state.quiz_type) or []
 
-cur_type = st.session_state.quiz_type
-is_mastered_done = st.session_state.get("mastery_done", {}).get(cur_type, False)
+k_now = mastery_key()
+is_mastered_done = st.session_state.get("mastery_done", {}).get(k_now, False)
 
 # ✅ 정복 상태가 아닐 때만 0개 복구 로직 실행
 if (not is_mastered_done) and (not isinstance(st.session_state.quiz, list) or len(st.session_state.quiz) == 0):
@@ -1813,8 +1820,8 @@ if clicked and clicked != st.session_state.quiz_type:
 
 # ✅✅✅ 유형 밑 '정복 안내' (스샷처럼)
 ensure_mastery_banner_shape()
-cur_type = st.session_state.quiz_type
-if st.session_state.mastery_done.get(cur_type, False):
+k_now = mastery_key()
+if st.session_state.mastery_done.get(k_now, False):
     st.caption("✅ 이미 이 유형은 모두 정복했습니다.")
 
 st.divider()
@@ -1824,7 +1831,9 @@ cbtn1, cbtn2 = st.columns(2)
 
 with cbtn1:
     if st.button("🔄 새 문제(랜덤 10문항)", use_container_width=True, key="btn_new_random_10"):
-        if st.session_state.get("mastery_done", {}).get(st.session_state.quiz_type, False):
+        k_now = mastery_key()
+        if st.session_state.get("mastery_done", {}).get(k_now, False):
+
             st.info("✅ 이미 이 유형은 모두 정복했습니다. (초기화하거나 다른 유형을 선택해 주세요.)")
             st.session_state["_scroll_top_once"] = True
             st.rerun()
@@ -1838,13 +1847,11 @@ with cbtn1:
 with cbtn2:
     if st.button("✅ 맞힌 단어 제외 초기화", use_container_width=True, key="btn_reset_mastered_current_type"):
         ensure_mastered_words_shape()
+        k_now = mastery_key()
+        st.session_state.mastered_words[k_now] = set()
+        st.session_state.mastery_banner_shown[k_now] = False
+        st.session_state.mastery_done[k_now] = False
         st.session_state.mastered_words[st.session_state.quiz_type] = set()
-
-        ensure_mastery_banner_shape()
-        st.session_state.mastery_banner_shown[st.session_state.quiz_type] = False
-
-        st.session_state.mastery_done[st.session_state.quiz_type] = False
-
         clear_question_widget_keys()
         new_quiz = _safe_build_quiz_after_reset(st.session_state.quiz_type)
         start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
@@ -1874,11 +1881,9 @@ if "answers" not in st.session_state or not isinstance(st.session_state.answers,
 # - 품사/유형/버튼 UI는 이미 위에서 렌더되었으므로 여기서 멈추면 UI는 유지되고,
 #   Q1~ 문제 영역만 차단됩니다.
 ensure_mastery_banner_shape()
-_cur_type = st.session_state.get("quiz_type")
-_is_mastered_done = bool(st.session_state.get("mastery_done", {}).get(_cur_type, False))
-
+k_now = mastery_key()
+_is_mastered_done = bool(st.session_state.get("mastery_done", {}).get(k_now, False))
 if _is_mastered_done:
-    # 안내 문구는 위(세그먼트 아래 caption)에서 이미 보여주고 있으니 여기서는 멈추기만.
     st.stop()
 
 for idx, q in enumerate(st.session_state.quiz):
@@ -1942,7 +1947,9 @@ if st.session_state.submitted:
         if picked == correct:
             score += 1
             if word_key:
-                st.session_state.mastered_words[current_type].add(word_key)
+                k_now = mastery_key(qtype=current_type, pos_mode=st.session_state.get("pos_mode"))
+                st.session_state.mastered_words[k_now].add(word_key)
+
         else:
             word_display = (str(q.get("jp_word", "")).strip() or str(q.get("reading", "")).strip())
             wrong_list.append(
@@ -1971,7 +1978,9 @@ if st.session_state.submitted:
 
         # ✅✅✅ (추가) 이 유형은 '정복 완료'로 표시
         ensure_mastery_banner_shape()
-        st.session_state.mastery_done[current_type] = True
+        k_now = mastery_key(qtype=current_type, pos_mode=st.session_state.get("pos_mode"))
+        st.session_state.mastery_done[k_now] = True
+
       
     elif ratio >= 0.7:
         st.info("👍 잘하고 있어요! 조금만 더 다듬으면 완벽해질 거예요.")
