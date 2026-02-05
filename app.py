@@ -1272,19 +1272,36 @@ if st.session_state.page == "my":
 
 # ============================================================
 # ✅ 상단: 오늘의 목표(루틴) + 연속 출석 배지
-#   (빈 타원 입력칸 제거 버전)
 # ============================================================
+streak = st.session_state.get("streak_count")
+did_today = st.session_state.get("did_attend_today")
+
+if streak is not None:
+    if did_today:
+        st.success(f"✅ 오늘 출석 완료!  (연속 {streak}일)")
+    else:
+        st.caption(f"연속 출석 {streak}일")
+
+    if streak >= 30:
+        st.info("🔥 30일 연속 달성! 진짜 레전드…")
+    elif streak >= 7:
+        st.info("🏅 7일 연속 달성! 흐름이 잡혔어요.")
+
+if "today_goal" not in st.session_state:
+    st.session_state.today_goal = "오늘은 10문항 1회 완주"
 if "today_goal_done" not in st.session_state:
     st.session_state.today_goal_done = False
 
 with st.container():
     st.markdown("### 🎯 오늘의 목표(루틴)")
     c1, c2 = st.columns([7, 3])
-
-    # ✅ 빈 박스 원인: 목표 입력칸 → 제거
-    # with c1:
-    #     st.session_state.today_goal = st.text_input(...)
-
+    with c1:
+        st.session_state.today_goal = st.text_input(
+            "목표 문장",
+            value=st.session_state.today_goal,
+            label_visibility="collapsed",
+            placeholder="예) 오늘은 10문항 2회 + 오답만 다시풀기 1회",
+        )
     with c2:
         st.session_state.today_goal_done = st.checkbox(
             "달성",
@@ -1296,6 +1313,7 @@ with st.container():
     else:
         st.caption("가볍게라도 체크하면 루틴이 끊기지 않습니다.")
 
+st.divider()
 
 # ============================================================
 # ✅ 관리자/내대시보드
