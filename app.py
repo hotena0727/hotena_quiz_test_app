@@ -1684,6 +1684,18 @@ if "total_counter" not in st.session_state:
 
 if "quiz" not in st.session_state:
     st.session_state.quiz = build_quiz(st.session_state.quiz_type) or []
+
+# ✅✅✅ 퀴즈가 비어있으면 즉시 복구 (핵심)
+if not isinstance(st.session_state.quiz, list) or len(st.session_state.quiz) == 0:
+    st.warning("문제가 0개라서 새로 생성합니다. (데이터/필터 조건 확인 필요)")
+    clear_question_widget_keys()
+    st.session_state.quiz = build_quiz(st.session_state.quiz_type) or []
+    st.session_state.submitted = False
+    # 그래도 0개면 여기서 멈추고 원인 메시지
+    if len(st.session_state.quiz) == 0:
+        st.error("퀴즈 생성 결과가 계속 0개입니다. build_quiz()에서 빈 리스트가 나오는 상태예요.")
+        st.stop()
+
     
 # ============================================================
 # ✅ 상단 UI (품사 / 출제유형)
@@ -1829,7 +1841,9 @@ sync_answers_from_widgets()
 # ============================================================
 # ✅ 제출/채점
 # ============================================================
-all_answered = all(a is not None for a in st.session_state.answers)
+quiz_len = len(st.session_state.quiz)
+all_answered = (quiz_len > 0) and all(a is not None for a in st.session_state.answers)
+
 
 if st.button("✅ 제출하고 채점하기", disabled=not all_answered, type="primary", use_container_width=True, key="btn_submit"):
     st.session_state.submitted = True
