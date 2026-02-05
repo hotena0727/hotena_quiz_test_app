@@ -110,8 +110,8 @@ div[data-baseweb="button-group"] button[aria-pressed="false"]{
 POS_MODE_MAP = {
     "i_adj": "い형용사",
     "na_adj": "な형용사",
+    "verb": "동사", 
     "mix_adj": "혼합",
-    "verb": "동사",              # ✅ 추가
 }
 POS_MODES = ["i_adj", "na_adj", "mix_adj", "verb"]  # ✅ 추가
 
