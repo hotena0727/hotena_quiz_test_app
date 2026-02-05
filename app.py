@@ -1746,33 +1746,53 @@ if "total_counter" not in st.session_state:
 
 if "quiz" not in st.session_state:
     st.session_state.quiz = build_quiz(st.session_state.quiz_type)
-
+    
 # ============================================================
-# ✅ 상단 UI (출제유형/새문제/초기화)
+# ✅ 상단 UI (품사 / 출제유형)
 # ============================================================
 
 colL, colR = st.columns(2, gap="small")
 
+# --- 왼쪽: 품사 ---
 with colL:
-    st.markdown('<div class="tabcap">품사</div>', unsafe_allow_html=True)
+    l1, r1 = st.columns([1.2, 8.8], vertical_alignment="center")
 
-    pos_clicked = st.segmented_control(
-        label="",
-        options=POS_MODES,
-        format_func=lambda x: ("✅ " + POS_MODE_MAP.get(x, x)) if x == st.session_state.pos_mode else POS_MODE_MAP.get(x, x),
-        default=st.session_state.pos_mode,
-        key="seg_pos_mode",
-    )
+    with l1:
+        st.markdown('<div class="seglabel">품사</div>', unsafe_allow_html=True)
 
+    with r1:
+        pos_clicked = st.segmented_control(
+            label="",
+            options=POS_MODES,
+            format_func=lambda x: (
+                "✅ " + POS_MODE_MAP.get(x, x)
+                if x == st.session_state.pos_mode
+                else POS_MODE_MAP.get(x, x)
+            ),
+            default=st.session_state.pos_mode,
+            key="seg_pos_mode",
+        )
+
+# --- 오른쪽: 유형 ---
 with colR:
-    st.markdown('<div class="tabcap">유형</div>', unsafe_allow_html=True)
+    l2, r2 = st.columns([1.2, 8.8], vertical_alignment="center")
 
-    clicked = st.segmented_control(
-        label="",
-        options=available_types,
-        format_func=lambda x: ("✅ " + quiz_label_map.get(x, x)) if x == st.session_state.quiz_type else quiz_label_map.get(x, x),
-        default=st.session_state.quiz_type,
-        key="seg_qtype",
+    with l2:
+        st.markdown('<div class="seglabel">유형</div>', unsafe_allow_html=True)
+
+    with r2:
+        clicked = st.segmented_control(
+            label="",
+            options=available_types,
+            format_func=lambda x: (
+                "✅ " + quiz_label_map.get(x, x)
+                if x == st.session_state.quiz_type
+                else quiz_label_map.get(x, x)
+            ),
+            default=st.session_state.quiz_type,
+            key="seg_qtype",
+        )
+
     )
 
 # ✅ 변경 감지 로직은 그대로 (아래는 기존과 동일)
