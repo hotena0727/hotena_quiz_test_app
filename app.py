@@ -491,19 +491,22 @@ def ensure_mastered_words_shape():
 
 # ✅✅✅ [추가] "완벽합니다" 메시지를 유형별로 1번만 띄우기 위한 플래그
 def ensure_mastery_banner_shape():
+    # ✅ 유형별 "배너 1회만" 플래그
     if "mastery_banner_shown" not in st.session_state or not isinstance(st.session_state.mastery_banner_shown, dict):
         st.session_state.mastery_banner_shown = {}
+
+    # ✅ 유형별 "정복 완료" 플래그 (유형 밑 안내용)
+    if "mastery_done" not in st.session_state or not isinstance(st.session_state.mastery_done, dict):
+        st.session_state.mastery_done = {}
 
     types = QUIZ_TYPES_ADMIN if is_admin() else QUIZ_TYPES_USER
     for t in types:
         st.session_state.mastery_banner_shown.setdefault(t, False)
+        st.session_state.mastery_done.setdefault(t, False)
 
+    # ✅ 유형별 mastered_words
     if "mastered_words" not in st.session_state or not isinstance(st.session_state.mastered_words, dict):
         st.session_state.mastered_words = {}
-
-    # ✅ get_available_quiz_types()를 여기서 부르지 말고(순서 꼬임 방지),
-    #    is_admin() 기준으로 직접 결정
-    types = QUIZ_TYPES_ADMIN if is_admin() else QUIZ_TYPES_USER
 
     for k in types:
         st.session_state.mastered_words.setdefault(k, set())
@@ -1909,8 +1912,13 @@ def build_quiz(qtype: str) -> list:
         ].copy()
 
     if len(base_pool) == 0:
-        ensure_mastery_banner_shape()
-        st.stop()
+    ensure_mastery_banner_shape()
+
+    # ✅ 이 유형은 다 풀었음(정복)
+    st.session_state.mastery_done[qtype] = True
+
+    # ✅ UI까지 내려가게 멈추지 말고 빈 퀴즈 반환
+    return []
 
     take_n = min(N, len(base_pool))
     if take_n < N:
@@ -1968,7 +1976,7 @@ if "total_counter" not in st.session_state:
     st.session_state.total_counter = {}
 
 if "quiz" not in st.session_state:
-    st.session_state.quiz = build_quiz(st.session_state.quiz_type)
+    st.session_state.quiz = build_quiz(st.session_state.quiz_type) or []
     
 # ============================================================
 # ✅ 상단 UI (품사 / 출제유형)
@@ -2030,6 +2038,12 @@ if clicked and clicked != st.session_state.quiz_type:
     start_quiz_state(new_quiz, clicked, clear_wrongs=True)
     st.rerun()
 
+# ✅✅✅ 유형 밑 '정복 안내' (스샷처럼)
+ensure_mastery_banner_shape()
+cur_type = st.session_state.quiz_type
+if st.session_state.mastery_done.get(cur_type, False):
+    st.caption("✅ 이미 이 유형은 모두 정복했습니다.")
+
 st.divider()
 
 # ✅✅ 여기부터 추가/정리 (새 문제 + 초기화)
@@ -2051,6 +2065,8 @@ with cbtn2:
 
         ensure_mastery_banner_shape()
         st.session_state.mastery_banner_shown[st.session_state.quiz_type] = False
+
+        st.session_state.mastery_done[st.session_state.quiz_type] = False
 
         clear_question_widget_keys()
         new_quiz = _safe_build_quiz_after_reset(st.session_state.quiz_type)
