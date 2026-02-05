@@ -1218,7 +1218,7 @@ def render_topcard():
     # ✅ 관리자(아이콘 버튼)
     with r_admin:
         if is_admin():
-            if st.button("📊", use_container_width=True, help="관리자 대시보드", key="btn_nav_admin"):
+            if st.button("📊", use_container_width=True, help="관리자 대시보드", key="topcard_btn_nav_admin"):
                 st.session_state.page = "admin"
                 st.rerun()
         else:
@@ -1226,13 +1226,13 @@ def render_topcard():
 
     # ✅ 마이페이지(아이콘 + 텍스트)  ← 규격 통일
     with r_my:
-        if st.button("📌 마이페이지", use_container_width=True, help="내 학습 기록/오답 TOP10 보기", key="btn_nav_my"):
+        if st.button("📌 마이페이지", use_container_width=True, help="내 학습 기록/오답 TOP10 보기", key="topcard_btn_nav_my"):
             st.session_state.page = "my"
             st.rerun()
 
     # ✅ 로그아웃(아이콘 + 텍스트)  ← 규격 통일
     with r_logout:
-        if st.button("🚪 로그아웃", use_container_width=True, help="로그아웃", key="btn_logout_top"):
+        if st.button("🚪 로그아웃", use_container_width=True, help="로그아웃", key="topcard_btn_logout"):
             clear_auth_everywhere()
             st.rerun()
 
@@ -1245,6 +1245,9 @@ if "page" not in st.session_state:
 
 render_topcard()
 
+# ============================================================
+# ✅ 라우팅 (함수 정의 후, 여기서만 화면 전환)
+# ============================================================
 import traceback
 
 if st.session_state.page == "admin":
@@ -1263,7 +1266,6 @@ if st.session_state.page == "my":
         st.code(traceback.format_exc())
     st.stop()
 
-render_topcard()
 # ============================================================
 # ✅ 관리자 대시보드 / 마이페이지 대시보드 (반드시 라우팅보다 먼저 정의)
 # ============================================================
@@ -1433,33 +1435,6 @@ def render_my_dashboard():
 
 
 # ============================================================
-# ✅ 라우팅 (함수 정의 후, 여기서만 화면 전환)
-# ============================================================
-import traceback
-
-if "page" not in st.session_state:
-    st.session_state.page = "quiz"
-
-render_topcard()
-
-if st.session_state.page == "admin":
-    if not is_admin():
-        st.session_state.page = "quiz"
-        st.warning("관리자 권한이 없습니다.")
-        st.rerun()
-    render_admin_dashboard()
-    st.stop()
-
-if st.session_state.page == "my":
-    try:
-        render_my_dashboard()
-    except Exception:
-        st.error("마이페이지에서 예외가 발생했습니다. 아래 Traceback을 확인해 주세요.")
-        st.code(traceback.format_exc())
-    st.stop()
-
-
-# ============================================================
 # ✅ 상단: 오늘의 목표(루틴) + 연속 출석 배지
 # ============================================================
 streak = st.session_state.get("streak_count")
@@ -1504,9 +1479,6 @@ with st.container():
 
 st.divider()
 
-# ============================================================
-# ✅ 관리자/내대시보드
-# ============================================================
 # ============================================================
 # ✅ 퀴즈 로직
 # ============================================================
