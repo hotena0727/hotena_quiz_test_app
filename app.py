@@ -72,7 +72,7 @@ div[data-baseweb="button-group"]{
   padding: 6px !important;
   border-radius: 999px !important;
   border: 1px solid rgba(120,120,120,0.18) !important;
-  gap: 6px !important;
+  gap: 1px !important;
   margin-top: 0px !important;       /* ✅ 캡션 바로 아래 붙게 */
   margin-bottom: 0px !important;
 }
