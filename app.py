@@ -22,10 +22,10 @@ div.stButton > button {
   padding: 6px 10px !important;
   font-size: 13px !important;
   line-height: 1.1 !important;
-  white-space: nowrap !important;  /* ✅ 1줄 고정 */
+  white-space: nowrap !important;
 }
 
-/* 칼럼 사이 간격을 살짝 줄여서 한 줄에 더 잘 들어가게 */
+/* 칼럼 사이 간격 */
 div[data-testid="column"]{
   padding-left: 4px !important;
   padding-right: 4px !important;
@@ -39,8 +39,46 @@ div[data-baseweb="radio"] * ,
 label[data-baseweb="radio"] * {
   font-family: var(--jp-rounded) !important;
 }
+
+/* ✅✅✅ 여기부터 추가: iOS Segmented Control 느낌 */
+div[data-baseweb="button-group"]{
+  background: rgba(120,120,120,0.12) !important;
+  padding: 6px !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(120,120,120,0.18) !important;
+  gap: 6px !important;
+}
+
+div[data-baseweb="button-group"] button{
+  border-radius: 999px !important;
+  padding: 10px 14px !important;
+  font-weight: 800 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  white-space: nowrap !important;
+}
+
+div[data-baseweb="button-group"] button[aria-pressed="true"]{
+  background: rgba(255,255,255,0.92) !important;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.10) !important;
+}
+
+div[data-baseweb="button-group"] button[aria-pressed="false"]{
+  opacity: 0.85 !important;
+}
+
+@media (max-width: 480px){
+  div[data-baseweb="button-group"] button{
+    padding: 9px 12px !important;
+    font-size: 14px !important;
+  }
+}
+/* ✅✅✅ 여기까지 추가 끝 */
+
 </style>
 """, unsafe_allow_html=True)
+
 
 POS_MODE_MAP = {
     "i_adj": "い형용사",
@@ -1710,48 +1748,6 @@ pos_clicked = st.segmented_control(
     default=st.session_state.pos_mode,
     key="seg_pos_mode",
 )
-
-<style>
-/* ✅ iOS Segmented Control 느낌 (둥글 + 선택만 채움) */
-div[data-baseweb="button-group"]{
-  background: rgba(120,120,120,0.12) !important; /* 바탕 트레이 */
-  padding: 6px !important;
-  border-radius: 999px !important;
-  border: 1px solid rgba(120,120,120,0.18) !important;
-  gap: 6px !important;
-}
-
-/* 버튼 공통 */
-div[data-baseweb="button-group"] button{
-  border-radius: 999px !important;
-  padding: 10px 14px !important;
-  font-weight: 800 !important;
-  border: 0 !important;               /* 버튼 테두리 제거 */
-  background: transparent !important;  /* 기본은 투명 */
-  box-shadow: none !important;
-  white-space: nowrap !important;
-}
-
-/* 선택된 버튼: 채워짐 + 살짝 그림자 */
-div[data-baseweb="button-group"] button[aria-pressed="true"]{
-  background: rgba(255,255,255,0.92) !important;  /* 선택 배경(라이트 느낌) */
-  box-shadow: 0 6px 14px rgba(0,0,0,0.10) !important;
-}
-
-/* 선택 안된 버튼: 글자만 */
-div[data-baseweb="button-group"] button[aria-pressed="false"]{
-  opacity: 0.85 !important;
-}
-
-/* (선택) 모바일에서 조금 더 컴팩트하게 */
-@media (max-width: 480px){
-  div[data-baseweb="button-group"] button{
-    padding: 9px 12px !important;
-    font-size: 14px !important;
-  }
-}
-</style>
-
 
 if pos_clicked and pos_clicked != st.session_state.pos_mode:
     st.session_state.pos_mode = pos_clicked
