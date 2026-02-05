@@ -105,36 +105,51 @@ div[data-baseweb="button-group"] button[aria-pressed="false"]{
   }
 }
 /* ✅ 상단 카드(환영 + 버튼들) */
+/* ✅ Topcard: 한 줄 헤더 정렬 개선 */
 .topcard{
   border: 1px solid rgba(120,120,120,0.18);
   border-radius: 16px;
-  padding: 12px 12px;
-  margin: 4px 0 12px 0;
+  padding: 12px 14px;
+  margin: 10px 0 10px 0;
   background: rgba(255,255,255,0.03);
 }
-.tophello{
-  font-weight: 800;
-  font-size: 13px;
-  opacity: 0.85;
-  margin: 0 0 6px 0;
-}
+
 .topline{
   display:flex;
   align-items:center;
   gap:10px;
+  min-height: 40px;
 }
+
 .topwelcome{
-  font-weight:800;
-  font-size:13px;
-  opacity:.9;
+  font-weight: 900;
+  font-size: 13px;
+  opacity: .9;
+  white-space: nowrap;
 }
+
 .topemail{
-  font-size:13px;
-  opacity:.75;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  max-width: 380px;
+  font-size: 13px;
+  opacity: .75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 520px;
+}
+/* ✅ Topcard 안 버튼들: 높이/패딩 통일 */
+.topcard div.stButton > button{
+  height: 40px !important;
+  padding: 0 12px !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  border-radius: 12px !important;
+}
+
+/* 아이콘 버튼(📌/📊)은 정사각형 */
+.topcard .iconbtn div.stButton > button{
+  width: 44px !important;
+  padding: 0 !important;
+  font-size: 16px !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -1189,10 +1204,9 @@ else:
     # 필요하면 st.stop()
 
 # ============================================================
-# ✅ 상단 헤더 (카드형) - B안: 한 줄 정리 (앱 느낌 ↑)
+# ✅ 상단 헤더 (카드형) - B안 개선: 앱 헤더 느낌
 # ============================================================
 def render_topcard():
-    # 로그인된 상태만 표시
     u = st.session_state.get("user")
     if not u:
         return
@@ -1201,8 +1215,7 @@ def render_topcard():
 
     st.markdown('<div class="topcard">', unsafe_allow_html=True)
 
-    # ✅ 1줄 헤더: 왼쪽(환영+이메일) / 오른쪽(버튼들)
-    left, right = st.columns([7, 3], vertical_alignment="center")
+    left, r_icon1, r_icon2, r_logout = st.columns([7.4, 1.2, 1.2, 2.2], vertical_alignment="center")
 
     with left:
         st.markdown(
@@ -1215,27 +1228,28 @@ def render_topcard():
             unsafe_allow_html=True,
         )
 
-    with right:
-        b1, b2, b3 = st.columns([1, 1, 1], gap="small")
+    with r_icon1:
+        st.markdown('<div class="iconbtn">', unsafe_allow_html=True)
+        if st.button("📌", use_container_width=True, key="btn_nav_my"):
+            st.session_state.page = "my"
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
-        with b1:
-            if st.button("📌", use_container_width=True, key="btn_nav_my"):
-                st.session_state.page = "my"
+    with r_icon2:
+        st.markdown('<div class="iconbtn">', unsafe_allow_html=True)
+        if is_admin():
+            if st.button("📊", use_container_width=True, key="btn_nav_admin"):
+                st.session_state.page = "admin"
                 st.rerun()
+        else:
+            # 자리 유지(레이아웃 안 흔들리게)
+            st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-        with b2:
-            if is_admin():
-                if st.button("📊", use_container_width=True, key="btn_nav_admin"):
-                    st.session_state.page = "admin"
-                    st.rerun()
-            else:
-                # ✅ 관리자 아니면 자리만 맞추기(레이아웃 흔들림 방지)
-                st.markdown("<div style='height:38px;'></div>", unsafe_allow_html=True)
-
-        with b3:
-            if st.button("로그아웃", use_container_width=True, key="btn_logout_top"):
-                clear_auth_everywhere()
-                st.rerun()
+    with r_logout:
+        if st.button("로그아웃", use_container_width=True, key="btn_logout_top"):
+            clear_auth_everywhere()
+            st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1244,7 +1258,6 @@ if "page" not in st.session_state:
     st.session_state.page = "quiz"
 
 render_topcard()
-
 # ============================================================
 # ✅ 라우팅 (여기서는 '화면만' 바꾼다)
 # ============================================================
