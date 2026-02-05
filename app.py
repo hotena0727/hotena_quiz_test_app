@@ -26,18 +26,6 @@ label[data-baseweb="radio"] * {
   font-family: var(--jp-rounded) !important;
 }
 
-/* segmented_control 내부 버튼 공통 */
-div[data-testid="stSegmentedControl"] button{
-  font-weight: 400 !important;   /* 얇게 */
-  opacity: .55 !important;       /* 전체적으로 회색 느낌 */
-  border: 1px solid rgba(0,0,0,.08) !important;
-}
-
-/* 선택된 버튼만 진하게/선명하게 */
-div[data-testid="stSegmentedControl"] button[aria-pressed="true"]{
-  font-weight: 700 !important;
-  opacity: 1 !important;
-
 /* ✅ 캡션(품사/유형) - 세그먼트에 딱 붙게 */
 .tabcap{
   font-weight: 900;
