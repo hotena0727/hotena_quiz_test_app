@@ -373,6 +373,9 @@ def _load_pools_cached(csv_path_str: str, level: str):
     pool_na_reading = pool_na[pool_na["jp_word"].notna() & (pool_na["jp_word"].astype(str).str.strip() != "")].copy()
     pool_na_meaning = pool_na.copy()
 
+    pool_v_reading = pool_v[pool_v["jp_word"].notna() & (pool_v["jp_word"].astype(str).str.strip() != "")].copy()
+    pool_v_meaning = pool_v.copy()
+
     return pool, pool_i, pool_i_reading, pool_i_meaning, pool_na, pool_na_reading, pool_na_meaning, pool_v, pool_v_reading, pool_v_meaning
   
 def ensure_pools_ready():
@@ -385,6 +388,7 @@ def ensure_pools_ready():
         for name in (
             "pool","pool_i","pool_i_reading","pool_i_meaning",
             "pool_na","pool_na_reading","pool_na_meaning"
+            "pool_v","pool_v_reading","pool_v_meaning",
         )
     )
 
