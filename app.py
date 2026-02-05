@@ -697,20 +697,6 @@ def get_authed_sb():
     st.session_state["_sb_authed_token"] = token
     return sb2
 
-
-def run_db(callable_fn):
-    try:
-        return callable_fn()
-    except Exception as e:
-        if is_jwt_expired_error(e):
-            ok = refresh_session_from_cookie_if_needed(force=True)
-            if ok:
-                st.rerun()
-            clear_auth_everywhere()
-            st.warning("세션이 만료되었습니다. 다시 로그인해 주세요.")
-            st.rerun()
-        raise
-
 def to_kst_naive(x):
     ts = pd.to_datetime(x, utc=True, errors="coerce")
     if isinstance(ts, pd.Series):
@@ -1253,14 +1239,14 @@ def render_topcard():
     st.markdown("</div>", unsafe_allow_html=True)
 
 # page 기본값
+# page 기본값
 if "page" not in st.session_state:
     st.session_state.page = "quiz"
 
 render_topcard()
 
-# ============================================================
-# ✅ 라우팅 (여기서는 '화면만' 바꾼다)
-# ============================================================
+import traceback
+
 if st.session_state.page == "admin":
     if not is_admin():
         st.session_state.page = "quiz"
@@ -1269,15 +1255,209 @@ if st.session_state.page == "admin":
     render_admin_dashboard()
     st.stop()
 
-import traceback  # 파일 상단 import들 근처에 1번만 추가
+if st.session_state.page == "my":
+    try:
+        render_my_dashboard()
+    except Exception:
+        st.error("마이페이지에서 예외가 발생했습니다. 아래 Traceback을 확인해 주세요.")
+        st.code(traceback.format_exc())
+    st.stop()
+
+render_topcard()
+# ============================================================
+# ✅ 관리자 대시보드 / 마이페이지 대시보드 (반드시 라우팅보다 먼저 정의)
+# ============================================================
+def render_admin_dashboard():
+    st.subheader("📊 관리자 대시보드")
+
+    if not is_admin():
+        st.error("접근 권한이 없습니다.")
+        st.session_state.page = "quiz"
+        st.stop()
+
+    if st.button("← 돌아가기", use_container_width=True, key="btn_admin_back"):
+        st.session_state.page = "quiz"
+        st.rerun()
+
+    sb_authed_local = get_authed_sb()
+    if sb_authed_local is None:
+        st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
+        return
+
+    show_debug = st.toggle("디버그 정보 표시", value=False, key="toggle_admin_debug")
+
+    def _fetch():
+        return fetch_all_attempts_admin(sb_authed_local, limit=500)
+
+    try:
+        res = run_db(_fetch)
+    except Exception as e:
+        st.error("❌ 관리자 조회 실패 (RLS/권한/테이블/컬럼 확인 필요)")
+        st.write(str(e))
+        return
+
+    rows = len(res.data) if getattr(res, "data", None) else 0
+    if show_debug:
+        st.caption(f"DEBUG: quiz_attempts rows = {rows}")
+
+    if rows <= 0:
+        st.info("데이터가 없거나 RLS 정책 때문에 전체 조회가 막혀 있습니다.")
+        st.write("- Supabase Table Editor에서 quiz_attempts에 실제 데이터가 있는지 확인")
+        st.write("- 데이터가 있는데도 0건이면 → RLS에서 관리자 전체 조회 허용 정책이 필요합니다.")
+        return
+
+    df_admin = pd.DataFrame(res.data).copy()
+    df_admin["created_at"] = to_kst_naive(df_admin["created_at"])
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("최근 500건", rows)
+    c2.metric("평균 점수", f"{df_admin['score'].mean():.2f}")
+    c3.metric("평균 오답", f"{df_admin['wrong_count'].mean():.2f}")
+
+    counter = Counter()
+    for row in (res.data or []):
+        wl = row.get("wrong_list") or []
+        if isinstance(wl, list):
+            for w in wl:
+                word = str(w.get("단어", "")).strip()
+                if word:
+                    counter[word] += 1
+
+    top10 = counter.most_common(10)
+    if not top10:
+        st.info("오답 데이터가 없습니다.")
+        return
+
+    st.markdown('<div class="weak-wrap">', unsafe_allow_html=True)
+    for idx, (word, cnt) in enumerate(top10, start=1):
+        st.markdown(
+            f"""
+            <div class="weak-card">
+              <div class="weak-word">{idx}. {word}</div>
+              <div class="weak-badge">오답 {cnt}회</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    csv = df_admin.to_csv(index=False).encode("utf-8-sig")
+    st.download_button("⬇️ CSV 다운로드", csv, file_name="quiz_attempts_admin.csv", use_container_width=True, key="btn_admin_csv")
+
+
+def render_my_dashboard():
+    st.subheader("📌 내 대시보드")
+
+    if st.button("← 돌아가기", use_container_width=True, key="btn_my_back"):
+        st.session_state.page = "quiz"
+        st.rerun()
+
+    u = st.session_state.get("user")
+    if not u:
+        st.warning("로그인 정보가 없습니다. 다시 로그인해 주세요.")
+        st.session_state.page = "quiz"
+        st.stop()
+
+    user_id_local = getattr(u, "id", None)
+    if not user_id_local:
+        st.warning("유저 ID를 찾지 못했습니다. 다시 로그인해 주세요.")
+        st.session_state.page = "quiz"
+        st.stop()
+
+    level_local = globals().get("LEVEL", "N4")
+    n_local = globals().get("N", 10)
+    qlabel_table = globals().get("quiz_label_for_table", {})
+
+    sb_authed_local = get_authed_sb()
+    if sb_authed_local is None:
+        st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
+        return
+
+    def _fetch():
+        return fetch_recent_attempts(sb_authed_local, user_id_local, limit=50)
+
+    try:
+        res = run_db(_fetch)
+    except Exception as e:
+        st.info("기록을 불러오지 못했습니다.")
+        st.write(str(e))
+        return
+
+    if not res.data:
+        st.info("아직 저장된 기록이 없습니다. 문제를 풀고 제출하면 기록이 쌓여요.")
+        return
+
+    hist = pd.DataFrame(res.data).copy()
+    hist["created_at"] = to_kst_naive(hist["created_at"])
+    hist["유형"] = hist["pos_mode"].map(lambda x: qlabel_table.get(x, x))
+    hist["정답률"] = (hist["score"] / hist["quiz_len"]).fillna(0.0)
+
+    avg_rate = float(hist["정답률"].mean() * 100)
+    best = int(hist["score"].max())
+    last_score = int(hist.iloc[0]["score"])
+    last_total = int(hist.iloc[0]["quiz_len"])
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("최근 평균(최대 50회)", f"{avg_rate:.0f}%")
+    c2.metric("최고 점수", f"{best} / {n_local}")
+    c3.metric("최근 점수", f"{last_score} / {last_total}")
+
+    st.divider()
+    st.markdown("### ❌ 자주 틀린 단어 TOP10 (최근 50회)")
+
+    counter = Counter()
+    for row in (res.data or []):
+        wl = row.get("wrong_list") or []
+        if isinstance(wl, list):
+            for w in wl:
+                word = str(w.get("단어", "")).strip()
+                if word:
+                    counter[word] += 1
+
+    if not counter:
+        st.caption("아직 오답 데이터가 충분하지 않습니다. 몇 번 더 풀면 TOP10이 생겨요 🙂")
+        return
+
+    top10 = counter.most_common(10)
+    for i, (w, cnt) in enumerate(top10, start=1):
+        st.write(f"{i}. {w} (오답 {cnt}회)")
+
+    if st.button("❌ 이 TOP10으로 시험 보기", type="primary", use_container_width=True, key="btn_quiz_from_top10"):
+        clear_question_widget_keys()
+        weak_wrong_list = [{"단어": w} for w, _ in top10]
+        retry_quiz = build_quiz_from_wrongs(weak_wrong_list, st.session_state.quiz_type)
+        start_quiz_state(retry_quiz, st.session_state.quiz_type, clear_wrongs=True)
+        st.session_state["_scroll_top_once"] = True
+        st.session_state.page = "quiz"
+        st.rerun()
+
+
+# ============================================================
+# ✅ 라우팅 (함수 정의 후, 여기서만 화면 전환)
+# ============================================================
+import traceback
+
+if "page" not in st.session_state:
+    st.session_state.page = "quiz"
+
+render_topcard()
+
+if st.session_state.page == "admin":
+    if not is_admin():
+        st.session_state.page = "quiz"
+        st.warning("관리자 권한이 없습니다.")
+        st.rerun()
+    render_admin_dashboard()
+    st.stop()
 
 if st.session_state.page == "my":
     try:
         render_my_dashboard()
-    except Exception as e:
-        st.error("마이페이지에서 예외가 발생했습니다. 아래 Traceback의 'NameError: name ... is not defined'를 확인해 주세요.")
+    except Exception:
+        st.error("마이페이지에서 예외가 발생했습니다. 아래 Traceback을 확인해 주세요.")
         st.code(traceback.format_exc())
     st.stop()
+
 
 # ============================================================
 # ✅ 상단: 오늘의 목표(루틴) + 연속 출석 배지
@@ -1424,151 +1604,6 @@ def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
     retry_df = retry_df.sample(frac=1).reset_index(drop=True)
 
     return [make_question(retry_df.iloc[i], qtype, base_for_distractor, pool) for i in range(len(retry_df))]
-
-
-
-def render_admin_dashboard():
-    st.subheader("📊 관리자 대시보드")
-
-    if not is_admin():
-        st.error("접근 권한이 없습니다.")
-        st.session_state.page = "quiz"
-        st.stop()
-
-    if st.button("← 돌아가기", use_container_width=True, key="btn_admin_back"):
-        st.session_state.page = "quiz"
-        st.rerun()
-
-    sb_authed_local = get_authed_sb()
-    if sb_authed_local is None:
-        st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
-        return
-
-    show_debug = st.toggle("디버그 정보 표시", value=False, key="toggle_admin_debug")
-
-    def _fetch():
-        return fetch_all_attempts_admin(sb_authed_local, limit=500)
-
-    try:
-        res = run_db(_fetch)
-    except Exception as e:
-        st.error("❌ 관리자 조회 실패 (RLS/권한/테이블/컬럼 확인 필요)")
-        st.write(str(e))
-        return
-
-    rows = len(res.data) if getattr(res, "data", None) else 0
-    if show_debug:
-        st.caption(f"DEBUG: quiz_attempts rows = {rows}")
-
-    if rows <= 0:
-        st.info("데이터가 없거나 RLS 정책 때문에 전체 조회가 막혀 있습니다.")
-        st.write("- Supabase Table Editor에서 quiz_attempts에 실제 데이터가 있는지 확인")
-        st.write("- 데이터가 있는데도 0건이면 → RLS에서 관리자 전체 조회 허용 정책이 필요합니다.")
-        return
-
-    df_admin = pd.DataFrame(res.data).copy()
-    df_admin["created_at"] = to_kst_naive(df_admin["created_at"])
-
-    c1, c2, c3 = st.columns(3)
-    c1.metric("최근 500건", rows)
-    c2.metric("평균 점수", f"{df_admin['score'].mean():.2f}")
-    c3.metric("평균 오답", f"{df_admin['wrong_count'].mean():.2f}")
-
-    st.markdown('<div class="weak-wrap">', unsafe_allow_html=True)
-
-    counter = Counter()
-    for row in (res.data or []):
-        wl = row.get("wrong_list") or []
-        if isinstance(wl, list):
-            for w in wl:
-                word = str(w.get("단어", "")).strip()
-                if word:
-                    counter[word] += 1
-
-    top10 = counter.most_common(10)
-
-    if not top10:
-        st.info("오답 데이터가 없습니다.")
-        return
-
-    for idx, (word, cnt) in enumerate(top10, start=1):
-        st.markdown(
-            f"""
-            <div class="weak-card">
-              <div class="weak-word">{idx}. {word}</div>
-              <div class="weak-badge">오답 {cnt}회</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
-    csv = df_admin.to_csv(index=False).encode("utf-8-sig")
-    st.download_button("⬇️ CSV 다운로드", csv, file_name="quiz_attempts_admin.csv", use_container_width=True, key="btn_admin_csv")
-
-def render_my_dashboard():
-    st.subheader("📌 내 대시보드")
-
-    if st.button("← 돌아가기", use_container_width=True, key="btn_my_back"):
-        st.session_state.page = "quiz"
-        st.rerun()
-
-    # ✅ 안전장치: user_id, LEVEL, N 등을 함수 안에서 확보(전역 의존 최소화)
-    u = st.session_state.get("user")
-    if not u:
-        st.warning("로그인 정보가 없습니다. 다시 로그인해 주세요.")
-        st.session_state.page = "quiz"
-        st.stop()
-
-    user_id_local = getattr(u, "id", None)
-    if not user_id_local:
-        st.warning("유저 ID를 찾지 못했습니다. 다시 로그인해 주세요.")
-        st.session_state.page = "quiz"
-        st.stop()
-
-    level_local = globals().get("LEVEL", "N4")
-    n_local = globals().get("N", 10)
-    qlabel_table = globals().get("quiz_label_for_table", {})
-    # (아래에서 user_id → user_id_local, LEVEL → level_local, N → n_local로 쓰면 더 안전)
-
-    sb_authed_local = get_authed_sb()
-    if sb_authed_local is None:
-        st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
-        return
-
-    def _fetch():
-        return fetch_recent_attempts(sb_authed_local, user_id_local, limit=50)
-
-
-    try:
-        res = run_db(_fetch)
-    except Exception as e:
-        st.info("기록을 불러오지 못했습니다.")
-        st.write(str(e))
-        return
-
-    if not res.data:
-        st.info("아직 저장된 기록이 없습니다. 문제를 풀고 제출하면 기록이 쌓여요.")
-        return
-
-    hist = pd.DataFrame(res.data).copy()
-    hist["created_at"] = to_kst_naive(hist["created_at"])
-    hist["유형"] = hist["pos_mode"].map(lambda x: qlabel_table.get(x, x))
-    hist["정답률"] = (hist["score"] / hist["quiz_len"]).fillna(0.0)
-
-    avg_rate = float(hist["정답률"].mean() * 100)
-    best = int(hist["score"].max())
-    last_score = int(hist.iloc[0]["score"])
-    last_total = int(hist.iloc[0]["quiz_len"])
-
-    c1, c2, c3 = st.columns(3)
-    c1.metric("최근 평균(최대 50회)", f"{avg_rate:.0f}%")
-    c2.metric("최고 점수", f"{best} / {n_local}")
-    c3.metric("최근 점수", f"{last_score} / {last_total}")
-
-    st.divider()
 
     # ============================================================
     # ✅ 자주 틀린 단어 TOP10 (최근 50회 기준) - A안(카드+진행바)
@@ -1938,12 +1973,6 @@ def build_quiz(qtype: str) -> list:
 
     if len(base_pool) == 0:
         ensure_mastery_banner_shape()
-
-    # ✅ 이 유형은 다 풀었음(정복)
-    st.session_state.mastery_done[qtype] = True
-
-    # ✅ UI까지 내려가게 멈추지 말고 빈 퀴즈 반환
-    return []
 
     take_n = min(N, len(base_pool))
     if take_n < N:
