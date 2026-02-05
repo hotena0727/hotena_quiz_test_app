@@ -113,7 +113,7 @@ POS_MODE_MAP = {
     "verb": "동사", 
     "mix_adj": "혼합",
 }
-POS_MODES = ["i_adj", "na_adj", "mix_adj", "verb"]  # ✅ 추가
+POS_MODES = ["i_adj", "na_adj", "verb", "mix_adj"]
 
 st.markdown('<div id="__TOP__"></div>', unsafe_allow_html=True)
 
