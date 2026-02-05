@@ -59,7 +59,7 @@ div[data-baseweb="button-group"]{
   border: 1px solid rgba(120,120,120,0.18) !important;
   gap: 6px !important;
   margin-top: 0px !important;       /* ✅ 캡션 바로 아래 붙게 */
-  margin-bottom: 14px !important;
+  margin-bottom: 5px !important;
 }
 
 div[data-baseweb="button-group"] button{
