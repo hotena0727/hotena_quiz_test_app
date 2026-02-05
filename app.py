@@ -1209,7 +1209,7 @@ def render_topcard():
     st.markdown('<div class="topcard">', unsafe_allow_html=True)
 
     # ✅ 순서: 관리자 / 마이페이지 / 로그아웃
-    left, r_admin, r_my, r_logout = st.columns([6.2, 1.2, 2.6, 1.0], vertical_alignment="center")
+    left, r_admin, r_my, r_logout = st.columns([6.0, 1.2, 2.4, 1.6], vertical_alignment="center")
 
     with left:
         st.markdown(
