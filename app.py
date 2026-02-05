@@ -1793,8 +1793,6 @@ with colR:
             key="seg_qtype",
         )
 
-    )
-
 # ✅ 변경 감지 로직은 그대로 (아래는 기존과 동일)
 if pos_clicked and pos_clicked != st.session_state.pos_mode:
     st.session_state.pos_mode = pos_clicked
