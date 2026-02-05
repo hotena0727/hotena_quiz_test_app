@@ -145,7 +145,7 @@ div[data-baseweb="button-group"] button[aria-pressed="false"]{
   border-radius: 12px !important;
 }
 
-/* 아이콘 버튼(📌/📊)은 정사각형 */
+/* ✅ 아이콘 버튼(로그아웃)은 정사각형 */
 .topcard .iconbtn div.stButton > button{
   width: 44px !important;
   padding: 0 !important;
@@ -1204,7 +1204,7 @@ else:
     # 필요하면 st.stop()
 
 # ============================================================
-# ✅ 상단 헤더 (카드형) - B안 개선: 앱 헤더 느낌
+# ✅ 상단 헤더 (카드형) - 개선: 내대시보드 텍스트+툴팁, 로그아웃 아이콘
 # ============================================================
 def render_topcard():
     u = st.session_state.get("user")
@@ -1215,7 +1215,7 @@ def render_topcard():
 
     st.markdown('<div class="topcard">', unsafe_allow_html=True)
 
-    left, r_icon1, r_icon2, r_logout = st.columns([7.4, 1.2, 1.2, 2.2], vertical_alignment="center")
+    left, r_my, r_admin, r_logout = st.columns([6.2, 2.6, 1.2, 1.0], vertical_alignment="center")
 
     with left:
         st.markdown(
@@ -1228,28 +1228,28 @@ def render_topcard():
             unsafe_allow_html=True,
         )
 
-    with r_icon1:
-        st.markdown('<div class="iconbtn">', unsafe_allow_html=True)
-        if st.button("📌", use_container_width=True, key="btn_nav_my"):
+    # ✅ 📌 내 대시보드: 텍스트 + 툴팁
+    with r_my:
+        if st.button("📌 내 대시보드", use_container_width=True, help="내 학습 기록/오답 TOP10 보기", key="btn_nav_my"):
             st.session_state.page = "my"
             st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
 
-    with r_icon2:
-        st.markdown('<div class="iconbtn">', unsafe_allow_html=True)
+    # ✅ 관리자(아이콘 유지)
+    with r_admin:
         if is_admin():
-            if st.button("📊", use_container_width=True, key="btn_nav_admin"):
+            if st.button("📊", use_container_width=True, help="관리자 대시보드", key="btn_nav_admin"):
                 st.session_state.page = "admin"
                 st.rerun()
         else:
-            # 자리 유지(레이아웃 안 흔들리게)
             st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
 
+    # ✅ 로그아웃: 아이콘 + 툴팁 (상단바 느낌)
     with r_logout:
-        if st.button("로그아웃", use_container_width=True, key="btn_logout_top"):
+        st.markdown('<div class="iconbtn">', unsafe_allow_html=True)
+        if st.button("🚪", use_container_width=True, help="로그아웃", key="btn_logout_top"):
             clear_auth_everywhere()
             st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1258,6 +1258,7 @@ if "page" not in st.session_state:
     st.session_state.page = "quiz"
 
 render_topcard()
+
 # ============================================================
 # ✅ 라우팅 (여기서는 '화면만' 바꾼다)
 # ============================================================
