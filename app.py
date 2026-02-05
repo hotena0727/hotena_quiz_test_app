@@ -490,11 +490,11 @@ def ensure_mastered_words_shape():
     if "mastered_words" not in st.session_state or not isinstance(st.session_state.mastered_words, dict):
         st.session_state.mastered_words = {}
 
+    # ✅ 조합키(품사|유형) 기준으로 보장
     types = QUIZ_TYPES_ADMIN if is_admin() else QUIZ_TYPES_USER
-    for pm in POS_MODES:
-        for qt in types:
-            k = f"{pm}|{qt}"
-            st.session_state.mastered_words.setdefault(k, set())
+    for qt in types:
+        k = mastery_key(qtype=qt, pos_mode=st.session_state.get("pos_mode", "i_adj"))
+        st.session_state.mastered_words.setdefault(k, set())
 
 def ensure_mastery_banner_shape():
     if "mastery_banner_shown" not in st.session_state or not isinstance(st.session_state.mastery_banner_shown, dict):
@@ -1947,8 +1947,8 @@ if st.session_state.submitted:
         if picked == correct:
             score += 1
             if word_key:
-                k_now = mastery_key(qtype=current_type, pos_mode=st.session_state.get("pos_mode"))
-                st.session_state.mastered_words[k_now].add(word_key)
+                ensure_mastered_words_shape()
+                st.session_state.mastered_words.setdefault(mastery_key(), set()).add(word_key)
 
         else:
             word_display = (str(q.get("jp_word", "")).strip() or str(q.get("reading", "")).strip())
