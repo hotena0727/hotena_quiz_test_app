@@ -104,6 +104,21 @@ div[data-baseweb="button-group"] button[aria-pressed="false"]{
     font-size: 14px !important;
   }
 }
+/* ✅ 상단 카드(환영 + 버튼들) */
+.topcard{
+  border: 1px solid rgba(120,120,120,0.18);
+  border-radius: 16px;
+  padding: 12px 12px;
+  margin: 10px 0 10px 0;
+  background: rgba(255,255,255,0.03);
+}
+.tophello{
+  font-weight: 800;
+  font-size: 13px;
+  opacity: 0.85;
+  margin: 0 0 6px 0;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -1666,26 +1681,37 @@ def render_my_dashboard():
         st.write("")
 
 # ============================================================
-# ✅ 상단 헤더 (페이지/버튼)
+# ✅ 상단 헤더 (카드형)
 # ============================================================
 if "page" not in st.session_state:
     st.session_state.page = "quiz"
 
-colA, colB, colC, colD = st.columns([7, 3, 2, 3])
+# 카드 시작
+st.markdown('<div class="topcard">', unsafe_allow_html=True)
+
+# 상단 문구
+st.markdown('<div class="tophello">환영합니다 🙂</div>', unsafe_allow_html=True)
+
+# 버튼 줄
+colA, colB, colC, colD = st.columns([3, 3, 2, 3])
 
 with colA:
-    st.caption("환영합니다 🙂")
-
-with colB:
     if st.button("📌 나의 기록", use_container_width=True, key="btn_go_my"):
         st.session_state.page = "my"
         st.rerun()
 
-with colC:
+with colB:
     if is_admin():
         if st.button("📊 관리자", use_container_width=True, key="btn_go_admin"):
             st.session_state.page = "admin"
             st.rerun()
+    else:
+        # 관리자 버튼 자리 비워두면 균형이 깨져서 빈 칸용 캡션(또는 st.empty()) 처리
+        st.empty()
+
+with colC:
+    # (선택) 자리 맞춤용 빈 칸
+    st.empty()
 
 with colD:
     if st.button("🚪 로그아웃", use_container_width=True, key="btn_logout"):
@@ -1695,6 +1721,9 @@ with colD:
             pass
         clear_auth_everywhere()
         st.rerun()
+
+# 카드 끝
+st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================
 # ✅ 라우팅
