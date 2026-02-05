@@ -967,7 +967,7 @@ def auth_box():
                     {
                         "email": email,
                         "password": pw,
-                        "options": {"email_redirect_to": APP_URL},
+                        "options": {"email_redirect_to": "https://hotenaquiztestapp-5wiha4zfuvtnq4qgxdhq72.streamlit.app/"},
                     }
                 )
 
