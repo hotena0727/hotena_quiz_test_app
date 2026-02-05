@@ -1195,7 +1195,7 @@ st.divider()
 # ============================================================
 # ✅ 퀴즈 로직
 # ============================================================
-def make_question(row: pd.Series, qtype: str, base_pool_i: pd.DataFrame, distractor_pool_level: pd.DataFrame) -> dict:
+def make_question(row: pd.Series, qtype: str, base_pool_for_reading: pd.DataFrame, distractor_pool: pd.DataFrame) -> dict:
     jp = row.get("jp_word")
     rd = row.get("reading")
     mn = row.get("meaning")
@@ -1206,15 +1206,16 @@ def make_question(row: pd.Series, qtype: str, base_pool_i: pd.DataFrame, distrac
         prompt = f"{display_word}의 발음은?"
         correct = row["reading"]
         candidates = (
-            base_pool_i.loc[base_pool_i["reading"] != correct, "reading"]
+            base_pool_for_reading.loc[base_pool_for_reading["reading"] != correct, "reading"]
             .dropna().drop_duplicates().tolist()
         )
 
     elif qtype == "meaning":
         prompt = f"{display_word}의 뜻은?"
         correct = row["meaning"]
+        # ✅ 이제 meaning도 품사별 distractor_pool에서 뽑음
         candidates = (
-            distractor_pool_level.loc[distractor_pool_level["meaning"] != correct, "meaning"]
+            distractor_pool.loc[distractor_pool["meaning"] != correct, "meaning"]
             .dropna().drop_duplicates().tolist()
         )
 
@@ -1222,7 +1223,7 @@ def make_question(row: pd.Series, qtype: str, base_pool_i: pd.DataFrame, distrac
         prompt = f"'{mn}'의 일본어는?"
         correct = str(row["jp_word"]).strip()
         candidates = (
-            base_pool_i.loc[base_pool_i["jp_word"] != correct, "jp_word"]
+            base_pool_for_reading.loc[base_pool_for_reading["jp_word"] != correct, "jp_word"]
             .dropna().astype(str).str.strip()
         )
         candidates = [x for x in candidates.tolist() if x]
@@ -1834,8 +1835,24 @@ def build_quiz(qtype: str) -> list:
         st.info(f"남은 문제가 {len(base_pool)}개라서, 남은 만큼만 출제합니다 🙂")
 
     sampled = base_pool.sample(n=take_n).reset_index(drop=True)
-    return [make_question(sampled.iloc[i], qtype, base_for_distractor, pool) for i in range(len(sampled))]
-    
+    def _pick_pool_by_pos(pos: str):
+        p = (pos or "").strip().lower()
+        if p == "i_adj":
+            return pool_i_reading, pool_i
+        if p == "na_adj":
+            return pool_na_reading, pool_na
+        if p == "verb":
+            return pool_v_reading, pool_v
+        # 혹시 모를 예외
+        return base_reading, base_for_distractor
+
+    quiz_list = []
+    for i in range(len(sampled)):
+        row = sampled.iloc[i]
+        reading_pool, distractor_pool = _pick_pool_by_pos(str(row.get("pos", "")))
+        quiz_list.append(make_question(row, qtype, reading_pool, distractor_pool))
+
+    return quiz_list    
 # ============================================================
 # ✅ 세션 초기화
 # ============================================================
