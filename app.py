@@ -283,12 +283,23 @@ READ_KW = dict(
 
 @st.cache_data(show_spinner=False)
 def _load_pools_cached(csv_path_str: str, level: str):
-    ...
+    # 1) CSV 로드
+    df = pd.read_csv(csv_path_str, **READ_KW)
+
+    # 2) 필수 컬럼 체크
+    required_cols = {"level", "pos", "jp_word", "reading", "meaning"}
+    missing = required_cols - set(df.columns)
+    if missing:
+        raise ValueError(f"CSV 필수 컬럼 누락: {sorted(list(missing))}")
+
+    # 3) level 필터
     pool = df[df["level"] == level].copy()
 
+    # 4) 품사별 분리
     pool_i = pool[pool["pos"] == "i_adj"].copy()
     pool_na = pool[pool["pos"] == "na_adj"].copy()
 
+    # 5) reading용(표기 없는 단어 제거), meaning용(전체 허용)
     pool_i_reading = pool_i[pool_i["jp_word"].notna() & (pool_i["jp_word"].astype(str).str.strip() != "")].copy()
     pool_i_meaning = pool_i.copy()
 
