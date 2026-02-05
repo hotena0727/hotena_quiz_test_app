@@ -144,13 +144,6 @@ div[data-baseweb="button-group"] button[aria-pressed="false"]{
   font-weight: 800 !important;
   border-radius: 12px !important;
 }
-
-/* ✅ 아이콘 버튼(로그아웃)은 정사각형 */
-.topcard .iconbtn div.stButton > button{
-  width: 44px !important;
-  padding: 0 !important;
-  font-size: 16px !important;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -1246,8 +1239,7 @@ def render_topcard():
 
     # ✅ 로그아웃(아이콘)
     with r_logout:
-        st.markdown('<div class="iconbtn">', unsafe_allow_html=True)
-        if st.button("🚪", use_container_width=True, help="로그아웃", key="btn_logout_top"):
+        if st.button("🚪 로그아웃", use_container_width=True, help="로그아웃", key="btn_logout_top"):
             clear_auth_everywhere()
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
