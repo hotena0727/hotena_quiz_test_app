@@ -1471,6 +1471,65 @@ def make_question(row: pd.Series, qtype: str, base_pool_for_reading: pd.DataFram
         "qtype": qtype,
     }
 
+def make_question(row: pd.Series, qtype: str, base_pool_for_reading: pd.DataFrame, distractor_pool: pd.DataFrame) -> dict:
+    ...
+    return {...}
+
+
+# ✅✅✅ [추가] 랜덤 N문항 생성 (세그먼트/새문제/세션초기화에서 공용)
+def build_quiz(qtype: str) -> list[dict]:
+    ensure_pools_ready()
+
+    pos_mode = st.session_state.get("pos_mode", "i_adj")
+
+    # --- 1) pos_mode에 따라 base 구성 ---
+    if pos_mode == "i_adj":
+        base = pool_i
+    elif pos_mode == "na_adj":
+        base = pool_na
+    elif pos_mode == "verb":
+        base = pool_v
+    else:  # mix_adj
+        base = pd.concat([pool_i, pool_na, pool_v], ignore_index=True)
+
+    # --- 2) 유형에 따라 "reading/kr2jp용 풀" 선택 ---
+    # reading / kr2jp 는 jp_word 없는 항목이 섞이면 문제 생성이 불안정할 수 있어서 *_reading 풀 사용
+    if qtype in ["reading", "kr2jp"]:
+        if pos_mode == "i_adj":
+            base_for_reading = pool_i_reading
+            distractor_pool = pool_i  # 뜻/보기 섞을 때는 전체도 OK
+        elif pos_mode == "na_adj":
+            base_for_reading = pool_na_reading
+            distractor_pool = pool_na
+        elif pos_mode == "verb":
+            base_for_reading = pool_v_reading
+            distractor_pool = pool_v
+        else:
+            base_for_reading = pd.concat([pool_i_reading, pool_na_reading, pool_v_reading], ignore_index=True)
+            distractor_pool = pd.concat([pool_i, pool_na, pool_v], ignore_index=True)
+    else:
+        # meaning은 jp_word 없어도 돌아가므로 base 그대로
+        base_for_reading = base
+        distractor_pool = base
+
+    # --- 3) ✅ '맞힌 단어 제외' 반영 (유형별) ---
+    mastered = st.session_state.get("mastered_words", {}).get(qtype, set())
+    if mastered:
+        base_filtered = base.copy()
+        key_series = (
+            base_filtered["jp_word"].astype(str).str.strip().replace({"": None})
+            .fillna(base_filtered["reading"].astype(str).str.strip())
+        )
+        base_filtered = base_filtered[~key_series.isin(mastered)].copy()
+    else:
+        base_filtered = base
+
+    # --- 4) 샘플링 가능 여부 체크 ---
+    if len(base_filtered) < N:
+        # 전부 다 맞혀서 남은 단어가 없거나, 제외 후 부족한 경우
+        # → 안내 플래그만 켜고, 전체 풀로 다시 생성(앱이 멈추지 않게)
+        st.session_state.setdefault("mastery_done", {
+
 
 def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
     ensure_pools_ready()
