@@ -17,20 +17,6 @@ st.markdown("""
 <link href="https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=Noto+Sans+JP:wght@400;500;700;800&display=swap" rel="stylesheet">
 
 <style>
-/* 출제유형 버튼을 '작고 납작하게' + 줄바꿈 금지 */
-div.stButton > button {
-  padding: 6px 10px !important;
-  font-size: 13px !important;
-  line-height: 1.1 !important;
-  white-space: nowrap !important;
-}
-
-/* 칼럼 사이 간격 */
-div[data-testid="stMarkdownContainer"] h10{
-  margin-top: 10px !important;
-  margin-bottom: 8px !important;   /* 제목 아래 여백 ↓ */
-}
-
 :root{ --jp-rounded: "Noto Sans JP","Kosugi Maru","Hiragino Sans","Yu Gothic","Meiryo",sans-serif; }
 .jp, .jp *{ font-family: var(--jp-rounded) !important; line-height:1.7; letter-spacing:.2px; }
 
@@ -40,15 +26,43 @@ label[data-baseweb="radio"] * {
   font-family: var(--jp-rounded) !important;
 }
 
-/* ✅✅✅ 여기부터 추가: iOS Segmented Control 느낌 */
+/* ✅ 캡션(품사/유형) - 세그먼트에 딱 붙게 */
+.tabcap{
+  font-weight: 900;
+  font-size: 12.5px;
+  opacity: .78;
+  margin: 0 0 2px 0 !important;     /* ✅ 4px → 2px */
+  padding: 0 !important;
+  line-height: 1.0 !important;
+  letter-spacing: .2px;
+}
+
+/* ✅ (삭제/수정) h10은 존재하지 않음 → 실제 헤더만 대상으로 */
+div[data-testid="stMarkdownContainer"] h1,
+div[data-testid="stMarkdownContainer"] h2,
+div[data-testid="stMarkdownContainer"] h3,
+div[data-testid="stMarkdownContainer"] h4{
+  margin-top: 10px !important;
+  margin-bottom: 8px !important;
+}
+
+/* 일반 버튼(새문제/초기화 등) */
+div.stButton > button {
+  padding: 6px 10px !important;
+  font-size: 13px !important;
+  line-height: 1.1 !important;
+  white-space: nowrap !important;
+}
+
+/* ✅ iOS Segmented Control 느낌 */
 div[data-baseweb="button-group"]{
   background: rgba(120,120,120,0.12) !important;
   padding: 6px !important;
   border-radius: 999px !important;
   border: 1px solid rgba(120,120,120,0.18) !important;
   gap: 6px !important;
-  margin-top: 0px !important;      /* 제목-버튼 사이 ↓ */
-  margin-bottom: 14px !important;  /* 버튼-다음 섹션 사이 ↑ */
+  margin-top: 0px !important;       /* ✅ 캡션 바로 아래 붙게 */
+  margin-bottom: 14px !important;
 }
 
 div[data-baseweb="button-group"] button{
@@ -76,8 +90,6 @@ div[data-baseweb="button-group"] button[aria-pressed="false"]{
     font-size: 14px !important;
   }
 }
-/* ✅✅✅ 여기까지 추가 끝 */
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -1742,16 +1754,31 @@ if "quiz" not in st.session_state:
 # ✅ 상단 UI (출제유형/새문제/초기화)
 # ============================================================
 
-st.markdown("### 품사 선택")
+colL, colR = st.columns(2, gap="small")
 
-pos_clicked = st.segmented_control(
-    label="",
-    options=POS_MODES,
-    format_func=lambda x: ("✅ " + POS_MODE_MAP.get(x, x)) if x == st.session_state.pos_mode else POS_MODE_MAP.get(x, x),
-    default=st.session_state.pos_mode,
-    key="seg_pos_mode",
-)
+with colL:
+    st.markdown('<div class="tabcap">품사</div>', unsafe_allow_html=True)
 
+    pos_clicked = st.segmented_control(
+        label="",
+        options=POS_MODES,
+        format_func=lambda x: ("✅ " + POS_MODE_MAP.get(x, x)) if x == st.session_state.pos_mode else POS_MODE_MAP.get(x, x),
+        default=st.session_state.pos_mode,
+        key="seg_pos_mode",
+    )
+
+with colR:
+    st.markdown('<div class="tabcap">유형</div>', unsafe_allow_html=True)
+
+    clicked = st.segmented_control(
+        label="",
+        options=available_types,
+        format_func=lambda x: ("✅ " + quiz_label_map.get(x, x)) if x == st.session_state.quiz_type else quiz_label_map.get(x, x),
+        default=st.session_state.quiz_type,
+        key="seg_qtype",
+    )
+
+# ✅ 변경 감지 로직은 그대로 (아래는 기존과 동일)
 if pos_clicked and pos_clicked != st.session_state.pos_mode:
     st.session_state.pos_mode = pos_clicked
     clear_question_widget_keys()
@@ -1759,17 +1786,6 @@ if pos_clicked and pos_clicked != st.session_state.pos_mode:
     start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
     st.rerun()
 
-st.markdown("### 출제 유형")
-
-clicked = st.segmented_control(
-    label="",
-    options=available_types,
-    format_func=lambda x: ("✅ " + quiz_label_map.get(x, x)) if x == st.session_state.quiz_type else quiz_label_map.get(x, x),
-    default=st.session_state.quiz_type,
-    key="seg_qtype",
-)
-
-# 선택 변경 시 퀴즈 재생성
 if clicked and clicked != st.session_state.quiz_type:
     clear_question_widget_keys()
     new_quiz = build_quiz(clicked)
