@@ -28,12 +28,10 @@ label[data-baseweb="radio"] * {
 
 /* ✅ 캡션(품사/유형) - 세그먼트에 딱 붙게 */
 .tabcap{
-  font-weight: 800;          /* 너무 무겁지 않게 */
-  font-size: 14.5px;         /* 🔥 핵심: 여기 */
-  opacity: .92;              /* 더 또렷하게 */
+  font-weight: 900;
+  font-size: 15px;
+  opacity: 1;
   margin: 0 0 4px 0 !important;
-  letter-spacing: .2px;
-  line-height: 1.1 !important;
 }
 
 /* ✅ (삭제/수정) h10은 존재하지 않음 → 실제 헤더만 대상으로 */
