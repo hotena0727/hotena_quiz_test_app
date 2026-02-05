@@ -1528,7 +1528,7 @@ def build_quiz(qtype: str) -> list[dict]:
     if len(base_filtered) < N:
         # 전부 다 맞혀서 남은 단어가 없거나, 제외 후 부족한 경우
         # → 안내 플래그만 켜고, 전체 풀로 다시 생성(앱이 멈추지 않게)
-        st.session_state.setdefault("mastery_done", {
+        st.session_state.setdefault("mastery_done", {})
 
 
 def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
