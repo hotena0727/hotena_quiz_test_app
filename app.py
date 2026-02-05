@@ -571,8 +571,14 @@ def start_quiz_state(quiz_list: list, qtype: str, clear_wrongs: bool = True):
     st.session_state.quiz_version = int(st.session_state.get("quiz_version", 0)) + 1
 
     st.session_state.quiz_type = qtype
+
+    # ✅ quiz_list 방어 (None/타입 이상)
+    if not isinstance(quiz_list, list):
+        quiz_list = []
+
     st.session_state.quiz = quiz_list
     st.session_state.answers = [None] * len(quiz_list)
+
 
     st.session_state.submitted = False
     st.session_state.saved_this_attempt = False
@@ -1777,10 +1783,18 @@ with cbtn2:
         st.session_state["_scroll_top_once"] = True
         st.rerun()
 # ============================================================
-# ✅ answers 길이 자동 맞춤
+# ✅ answers 길이 자동 맞춤 (quiz 안전 보정)
 # ============================================================
+if "quiz" not in st.session_state or not isinstance(st.session_state.quiz, list):
+    st.session_state.quiz = []
+    
+# (빈 리스트면 새로 생성)
+if len(st.session_state.quiz) == 0:
+    st.session_state.quiz = build_quiz(st.session_state.quiz_type) or []
+
 quiz_len = len(st.session_state.quiz)
-if "answers" not in st.session_state or len(st.session_state.answers) != quiz_len:
+
+if "answers" not in st.session_state or not isinstance(st.session_state.answers, list) or len(st.session_state.answers) != quiz_len:
     st.session_state.answers = [None] * quiz_len
 
 # ============================================================
