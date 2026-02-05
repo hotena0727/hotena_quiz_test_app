@@ -118,7 +118,24 @@ div[data-baseweb="button-group"] button[aria-pressed="false"]{
   opacity: 0.85;
   margin: 0 0 6px 0;
 }
-
+.topline{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.topwelcome{
+  font-weight:800;
+  font-size:13px;
+  opacity:.9;
+}
+.topemail{
+  font-size:13px;
+  opacity:.75;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  max-width: 380px;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -1172,7 +1189,7 @@ else:
     # 필요하면 st.stop()
 
 # ============================================================
-# ✅ 상단 헤더 (카드형)
+# ✅ 상단 헤더 (카드형) - B안: 한 줄 정리 (앱 느낌 ↑)
 # ============================================================
 def render_topcard():
     # 로그인된 상태만 표시
@@ -1184,36 +1201,50 @@ def render_topcard():
 
     st.markdown('<div class="topcard">', unsafe_allow_html=True)
 
-    c1, c2 = st.columns([7, 3])
-    with c1:
-        st.markdown(f'<div class="tophello">환영합니다 🙂<br>{email}</div>', unsafe_allow_html=True)
+    # ✅ 1줄 헤더: 왼쪽(환영+이메일) / 오른쪽(버튼들)
+    left, right = st.columns([7, 3], vertical_alignment="center")
 
-    with c2:
-        if st.button("로그아웃", use_container_width=True, key="btn_logout_top"):
-            clear_auth_everywhere()
-            st.rerun()
+    with left:
+        st.markdown(
+            f"""
+<div class="topline">
+  <span class="topwelcome">환영합니다 🙂</span>
+  <span class="topemail">{email}</span>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
 
-    # 내 대시보드/관리자 버튼(선택)
-    d1, d2 = st.columns(2)
-    with d1:
-        if st.button("📌 내 대시보드", use_container_width=True, key="btn_nav_my"):
-            st.session_state.page = "my"
-            st.rerun()
+    with right:
+        b1, b2, b3 = st.columns([1, 1, 1], gap="small")
 
-    with d2:
-        if is_admin():
-            if st.button("📊 관리자", use_container_width=True, key="btn_nav_admin"):
-                st.session_state.page = "admin"
+        with b1:
+            if st.button("📌", use_container_width=True, key="btn_nav_my"):
+                st.session_state.page = "my"
+                st.rerun()
+
+        with b2:
+            if is_admin():
+                if st.button("📊", use_container_width=True, key="btn_nav_admin"):
+                    st.session_state.page = "admin"
+                    st.rerun()
+            else:
+                # ✅ 관리자 아니면 자리만 맞추기(레이아웃 흔들림 방지)
+                st.markdown("<div style='height:38px;'></div>", unsafe_allow_html=True)
+
+        with b3:
+            if st.button("로그아웃", use_container_width=True, key="btn_logout_top"):
+                clear_auth_everywhere()
                 st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
 
+
 if "page" not in st.session_state:
     st.session_state.page = "quiz"
 
-# ... (상단 카드 렌더링 동일)
+render_topcard()
 
-render_topcard()  
 # ============================================================
 # ✅ 라우팅 (여기서는 '화면만' 바꾼다)
 # ============================================================
