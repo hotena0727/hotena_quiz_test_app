@@ -26,7 +26,7 @@ div.stButton > button {
 }
 
 /* 칼럼 사이 간격 */
-div[data-testid="stMarkdownContainer"] h10{
+div[data-testid="stMarkdownContainer"] h20{
   margin-top: 10px !important;
   margin-bottom: 8px !important;   /* 제목 아래 여백 ↓ */
 }
