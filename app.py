@@ -46,7 +46,7 @@ div[data-testid="stMarkdownContainer"] h4{
 .seglabel{
   font-weight: 900;
   font-size: 14px;
-  opacity: .80;
+  opacity: .90;
   letter-spacing: .2px;
   line-height: 1;
   user-select: none;
@@ -1995,7 +1995,7 @@ with colL:
             default=st.session_state.pos_mode,
             key="seg_pos_mode",
         )
-        st.caption("👆 품사를 선택하세요.")
+
 # --- 오른쪽: 유형 ---
 with colR:
     l2, r2 = st.columns([0.8, 9.2], vertical_alignment="center")
@@ -2015,7 +2015,7 @@ with colR:
             default=st.session_state.quiz_type,
             key="seg_qtype",
         )
-        st.caption("👆 출제 유형을 선택하세요.")
+
 # ✅ 변경 감지 로직은 그대로 (아래는 기존과 동일)
 if pos_clicked and pos_clicked != st.session_state.pos_mode:
     st.session_state.pos_mode = pos_clicked
