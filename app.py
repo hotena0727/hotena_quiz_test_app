@@ -49,7 +49,6 @@ POS_MODE_MAP = {
 }
 POS_MODES = ["i_adj", "na_adj", "mix_adj"]
 
-st.title(f"{POS_MODE_MAP.get(st.session_state.get('pos_mode','i_adj'))} 퀴즈")
 st.markdown('<div id="__TOP__"></div>', unsafe_allow_html=True)
 
 def scroll_to_top(nonce: int = 0):
@@ -282,58 +281,34 @@ READ_KW = dict(
 
 @st.cache_data(show_spinner=False)
 def _load_pools_cached(csv_path_str: str, level: str):
-    df = pd.read_csv(csv_path_str, **READ_KW)
-    if len(df.columns) == 1 and "\t" in df.columns[0]:
-        df = pd.read_csv(csv_path_str, sep="\t", **READ_KW)
-
-    df.columns = df.columns.astype(str).str.replace("\ufeff", "", regex=False).str.strip()
-
-    required_cols = ["jp_word", "reading", "meaning", "level", "pos"]
-    missing = [c for c in required_cols if c not in df.columns]
-    if missing:
-        raise ValueError(f"CSV 컬럼이 부족합니다: {missing}")
-
-    for c in required_cols:
-        df[c] = df[c].astype(str).str.strip()
-        df[c] = df[c].replace({"nan": "", "NaN": "", "NULL": "", "null": "", "None": "", "none": ""})
-
-    df = df[(df["reading"] != "") & (df["meaning"] != "") & (df["level"] != "") & (df["pos"] != "")].copy()
-
+    ...
     pool = df[df["level"] == level].copy()
 
     pool_i = pool[pool["pos"] == "i_adj"].copy()
     pool_na = pool[pool["pos"] == "na_adj"].copy()
 
     pool_i_reading = pool_i[pool_i["jp_word"].notna() & (pool_i["jp_word"].astype(str).str.strip() != "")].copy()
-    pool_i_meaning  = pool_i.copy()
+    pool_i_meaning = pool_i.copy()
 
     pool_na_reading = pool_na[pool_na["jp_word"].notna() & (pool_na["jp_word"].astype(str).str.strip() != "")].copy()
     pool_na_meaning = pool_na.copy()
 
     return pool, pool_i, pool_i_reading, pool_i_meaning, pool_na, pool_na_reading, pool_na_meaning
 
-
 def ensure_pools_ready():
     global pool, pool_i, pool_i_reading, pool_i_meaning
-
-    # ✅ Streamlit rerun에서는 globals가 초기화될 수 있음.
-    #    session_state.pool_ready만 믿고 return하면 pool_i가 없는 상태가 생김.
-    ready_flag = bool(st.session_state.get("pool_ready"))
+    global pool_na, pool_na_reading, pool_na_meaning
 
     globals_ok = all(
         (name in globals()) and (globals().get(name) is not None)
         for name in (
-            "pool",
-            "pool_i", "pool_i_reading", "pool_i_meaning",
-            "pool_na", "pool_na_reading", "pool_na_meaning",
+            "pool","pool_i","pool_i_reading","pool_i_meaning",
+            "pool_na","pool_na_reading","pool_na_meaning"
         )
     )
 
-    if ready_flag and globals_ok:
+    if st.session_state.get("pool_ready") and globals_ok:
         return
-
-    BASE_DIR = Path(__file__).resolve().parent
-    CSV_PATH = BASE_DIR / "data" / "words_adj_300.csv"
 
     try:
         pool, pool_i, pool_i_reading, pool_i_meaning, pool_na, pool_na_reading, pool_na_meaning = _load_pools_cached(str(CSV_PATH), LEVEL)
@@ -342,12 +317,12 @@ def ensure_pools_ready():
         st.stop()
 
     if len(pool_i) < N:
-      st.error(f"い형용사 단어가 부족합니다: pool={len(pool_i)}")
-      st.stop()
+        st.error(f"い형용사 단어가 부족합니다: pool={len(pool_i)}")
+        st.stop()
 
     if len(pool_na) < N:
-      st.error(f"な형용사 단어가 부족합니다: pool={len(pool_na)}")
-      st.stop()
+        st.error(f"な형용사 단어가 부족합니다: pool={len(pool_na)}")
+        st.stop()
 
     st.session_state["pool_ready"] = True
 
@@ -1007,7 +982,7 @@ def render_naver_talk():
     )
 
 # ============================================================
-# ✅ 앱 시작: refresh → 로그인 강제 → profile upsert → 출석 체크
+# ✅ 앱 시작: refresh → 로그인 강제 → progress 복원 → (pos/quiz 고정) → title → profile upsert → 출석 체크
 # ============================================================
 ok = refresh_session_from_cookie_if_needed(force=False)
 
@@ -1024,6 +999,7 @@ user_email = getattr(user, "email", None) or st.session_state.get("login_email")
 sb_authed = get_authed_sb()
 
 if sb_authed is not None:
+    # ✅ 1) progress 복원 (pos_mode/quiz_type가 여기서 들어옴)
     if not st.session_state.get("progress_restored"):
         try:
             restore_progress_from_db(sb_authed, user_id)
@@ -1032,6 +1008,18 @@ if sb_authed is not None:
         finally:
             st.session_state.progress_restored = True
 
+    # ✅ 2) 복원 이후에만 기본값 보정 (복원값이 있으면 그대로 유지)
+    if "pos_mode" not in st.session_state or st.session_state.get("pos_mode") not in POS_MODES:
+        st.session_state.pos_mode = "i_adj"
+
+    available_types = get_available_quiz_types()
+    if "quiz_type" not in st.session_state or st.session_state.get("quiz_type") not in available_types:
+        st.session_state.quiz_type = available_types[0]
+
+    # ✅ 3) title은 “복원/보정” 끝난 다음에 출력 (이제 안 튐)
+    st.title(f"{POS_MODE_MAP.get(st.session_state.pos_mode)} 퀴즈")
+
+    # ✅ 4) 프로필/출석
     ensure_profile(sb_authed, user)
 
     att = mark_attendance_once(sb_authed)
@@ -1149,14 +1137,13 @@ def make_question(row: pd.Series, qtype: str, base_pool_i: pd.DataFrame, distrac
         "qtype": qtype,
     }
 def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
-    ensure_pools_ready()   # ✅ 추가: my 페이지에서도 pool_i가 존재하게 보장
+    ensure_pools_ready()
 
     wrong_words = []
     for w in (wrong_list or []):
         key = str(w.get("단어", "")).strip()
         if key:
             wrong_words.append(key)
-
     wrong_words = list(dict.fromkeys(wrong_words))
 
     if not wrong_words:
@@ -1167,21 +1154,25 @@ def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
 
     if pos_mode == "i_adj":
         base = pool_i
+        base_for_distractor = pool_i
     elif pos_mode == "na_adj":
         base = pool_na
+        base_for_distractor = pool_na
     else:
         base = pd.concat([pool_i, pool_na], ignore_index=True)
+        base_for_distractor = base  # ✅ concat 그대로 재사용
 
-    retry_df = base[
-        (base["jp_word"].isin(wrong_words)) | (base["reading"].isin(wrong_words))
-    ].copy()
+    retry_df = base[(base["jp_word"].isin(wrong_words)) | (base["reading"].isin(wrong_words))].copy()
 
     if len(retry_df) == 0:
         st.error("오답 단어를 풀에서 찾지 못했습니다. (jp_word/reading 매칭 확인)")
         st.stop()
 
     retry_df = retry_df.sample(frac=1).reset_index(drop=True)
-    return [make_question(retry_df.iloc[i], qtype, pool_i, pool) for i in range(len(retry_df))]
+
+    return [make_question(retry_df.iloc[i], qtype, base_for_distractor, pool) for i in range(len(retry_df))]
+
+
 
 def render_admin_dashboard():
     st.subheader("📊 관리자 대시보드")
@@ -1601,14 +1592,18 @@ if st.session_state.page == "my":
     st.stop()
 
 ensure_pools_ready()
+
+def _safe_build_quiz_after_reset(qtype: str) -> list:
+    try:
+        return build_quiz(qtype)
+    except Exception:
+        return []
   
 def build_quiz(qtype: str) -> list:
     ensure_pools_ready()
 
-    # ✅ (0) 상위 선택: i_adj / na_adj / mix_adj
     pos_mode = st.session_state.get("pos_mode", "i_adj")
 
-    # ✅ (A) pos_mode에 따른 '기본 풀' 선택
     if pos_mode == "i_adj":
         base_reading = pool_i_reading
         base_meaning = pool_i_meaning
@@ -1617,12 +1612,11 @@ def build_quiz(qtype: str) -> list:
         base_reading = pool_na_reading
         base_meaning = pool_na_meaning
         base_for_distractor = pool_na
-    else:  # mix_adj
+    else:
         base_reading = pd.concat([pool_i_reading, pool_na_reading], ignore_index=True)
         base_meaning = pd.concat([pool_i_meaning, pool_na_meaning], ignore_index=True)
         base_for_distractor = pd.concat([pool_i, pool_na], ignore_index=True)
 
-    # ✅ (B) qtype에 따른 base_pool 결정
     if qtype == "reading":
         base_pool = base_reading
     elif qtype == "meaning":
@@ -1636,36 +1630,24 @@ def build_quiz(qtype: str) -> list:
         qtype = "meaning"
         base_pool = base_meaning
 
-    # 2) 맞힌 단어 제외 (기존 로직 그대로)
     ensure_mastered_words_shape()
     mastered = st.session_state.mastered_words.get(qtype, set())
-
     if mastered:
         base_pool = base_pool[
             (~base_pool["jp_word"].isin(mastered)) & (~base_pool["reading"].isin(mastered))
         ].copy()
 
-    # 3) 남은 문제 처리 (기존 로직 그대로)
     if len(base_pool) == 0:
         ensure_mastery_banner_shape()
-        # ... 기존 처리 그대로 ...
+        # (여기 기존 처리 그대로 두되) 마지막에 st.stop()으로 마무리
         st.stop()
 
-    # 4) 샘플링 (기존 로직 그대로)
     take_n = min(N, len(base_pool))
+    if take_n < N:
+        st.info(f"남은 문제가 {len(base_pool)}개라서, 남은 만큼만 출제합니다 🙂")
+
     sampled = base_pool.sample(n=take_n).reset_index(drop=True)
-
-    # ✅ (C) 핵심 변경: make_question에 pos_mode 맞춘 distractor 풀을 넘김
     return [make_question(sampled.iloc[i], qtype, base_for_distractor, pool) for i in range(len(sampled))]
-
-def _safe_build_quiz_after_reset(qtype: str) -> list:
-    return build_quiz(qtype)
-
-# ✅✅✅ 세션 초기화 들어가기 전에 "먼저" 계산 (중요)
-available_types = get_available_quiz_types()
-
-if "pos_mode" not in st.session_state or st.session_state.get("pos_mode") not in POS_MODES:
-    st.session_state.pos_mode = "i_adj"
     
 # ============================================================
 # ✅ 세션 초기화
