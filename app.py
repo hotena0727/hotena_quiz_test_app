@@ -1912,7 +1912,7 @@ def build_quiz(qtype: str) -> list:
         ].copy()
 
     if len(base_pool) == 0:
-    ensure_mastery_banner_shape()
+        ensure_mastery_banner_shape()
 
     # ✅ 이 유형은 다 풀었음(정복)
     st.session_state.mastery_done[qtype] = True
@@ -2170,6 +2170,11 @@ if st.session_state.submitted:
     if ratio == 1:
         st.balloons()
         st.success("🎉 완벽해요! 전부 정답입니다. 정말 잘했어요!")
+
+        # ✅✅✅ (추가) 이 유형은 '정복 완료'로 표시
+    ensure_mastery_banner_shape()
+    st.session_state.mastery_done[current_type] = True
+      
     elif ratio >= 0.7:
         st.info("👍 잘하고 있어요! 조금만 더 다듬으면 완벽해질 거예요.")
     else:
