@@ -1733,17 +1733,24 @@ if "total_counter" not in st.session_state:
 if "quiz" not in st.session_state:
     st.session_state.quiz = build_quiz(st.session_state.quiz_type) or []
 
-# ✅✅✅ 퀴즈가 비어있으면 즉시 복구 (핵심)
-if not isinstance(st.session_state.quiz, list) or len(st.session_state.quiz) == 0:
+cur_type = st.session_state.quiz_type
+is_mastered_done = st.session_state.get("mastery_done", {}).get(cur_type, False)
+
+# ✅ 정복 상태가 아닐 때만 0개 복구 로직 실행
+if (not is_mastered_done) and (not isinstance(st.session_state.quiz, list) or len(st.session_state.quiz) == 0):
     st.warning("문제가 0개라서 새로 생성합니다. (데이터/필터 조건 확인 필요)")
     clear_question_widget_keys()
     st.session_state.quiz = build_quiz(st.session_state.quiz_type) or []
     st.session_state.submitted = False
-    # 그래도 0개면 여기서 멈추고 원인 메시지
+
     if len(st.session_state.quiz) == 0:
         st.error("퀴즈 생성 결과가 계속 0개입니다. build_quiz()에서 빈 리스트가 나오는 상태예요.")
         st.stop()
 
+# ✅ 정복 상태면 안내만
+if is_mastered_done:
+    st.info("✅ 이미 이 유형은 모두 정복했습니다. (초기화하거나 다른 유형을 선택해 주세요.)")
+    st.stop()
     
 # ============================================================
 # ✅ 상단 UI (품사 / 출제유형)
