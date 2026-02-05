@@ -17,20 +17,6 @@ st.markdown("""
 <link href="https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=Noto+Sans+JP:wght@400;500;700;800&display=swap" rel="stylesheet">
 
 <style>
-/* 출제유형 버튼을 '작고 납작하게' + 줄바꿈 금지 */
-div.stButton > button {
-  padding: 6px 10px !important;
-  font-size: 13px !important;
-  line-height: 1.1 !important;
-  white-space: nowrap !important;
-}
-
-/* 칼럼 사이 간격 */
-div[data-testid="stMarkdownContainer"] h10{
-  margin-top: 10px !important;
-  margin-bottom: 8px !important;   /* 제목 아래 여백 ↓ */
-}
-
 :root{ --jp-rounded: "Noto Sans JP","Kosugi Maru","Hiragino Sans","Yu Gothic","Meiryo",sans-serif; }
 .jp, .jp *{ font-family: var(--jp-rounded) !important; line-height:1.7; letter-spacing:.2px; }
 
@@ -40,45 +26,50 @@ label[data-baseweb="radio"] * {
   font-family: var(--jp-rounded) !important;
 }
 
-/* ✅✅✅ 여기부터 추가: iOS Segmented Control 느낌 */
+/* ✅✅✅ 심플 타이틀(캡션) + 간격 최소화 */
+.control-title{
+  font-weight: 800;
+  font-size: 13px;
+  opacity: .8;
+  margin: 2px 0 4px 0;
+}
+
+/* ✅✅✅ segmented_control 전체를 ‘얇고 심플’하게 */
 div[data-baseweb="button-group"]{
-  background: rgba(120,120,120,0.12) !important;
-  padding: 6px !important;
-  border-radius: 999px !important;
-  border: 1px solid rgba(120,120,120,0.18) !important;
-  gap: 6px !important;
-  margin-top: 0px !important;      /* 제목-버튼 사이 ↓ */
-  margin-bottom: 14px !important;  /* 버튼-다음 섹션 사이 ↑ */
+  background: transparent !important;
+  border: 1px solid rgba(120,120,120,0.20) !important;
+  padding: 2px !important;
+  border-radius: 12px !important;
+  gap: 2px !important;
+  margin: 0 0 8px 0 !important;   /* 아래 여백만 살짝 */
 }
 
 div[data-baseweb="button-group"] button{
-  border-radius: 999px !important;
-  padding: 10px 14px !important;
+  border-radius: 10px !important;
+  padding: 6px 10px !important;
   font-weight: 800 !important;
   border: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
   white-space: nowrap !important;
+  line-height: 1.05 !important;
+  min-height: 32px !important;
 }
 
 div[data-baseweb="button-group"] button[aria-pressed="true"]{
-  background: rgba(255,255,255,0.92) !important;
-  box-shadow: 0 6px 14px rgba(0,0,0,0.10) !important;
+  background: rgba(120,120,120,0.10) !important; /* 선택만 살짝 채움 */
 }
 
 div[data-baseweb="button-group"] button[aria-pressed="false"]{
-  opacity: 0.85 !important;
+  opacity: .85 !important;
 }
 
-@media (max-width: 480px){
-  div[data-baseweb="button-group"] button{
-    padding: 9px 12px !important;
-    font-size: 14px !important;
-  }
+/* ✅ divider(선) 간격도 줄이기 (원하면) */
+hr{
+  margin: 10px 0 !important;
 }
-/* ✅✅✅ 여기까지 추가 끝 */
-
 </style>
+
 """, unsafe_allow_html=True)
 
 
@@ -1742,12 +1733,12 @@ if "quiz" not in st.session_state:
 # ✅ 상단 UI (출제유형/새문제/초기화)
 # ============================================================
 
-st.markdown("### 품사 선택")
+st.markdown('<div class="control-title">품사</div>', unsafe_allow_html=True)
 
 pos_clicked = st.segmented_control(
     label="",
     options=POS_MODES,
-    format_func=lambda x: ("✅ " + POS_MODE_MAP.get(x, x)) if x == st.session_state.pos_mode else POS_MODE_MAP.get(x, x),
+    format_func=lambda x: POS_MODE_MAP.get(x, x),  # ✅ 체크아이콘 제거(심플)
     default=st.session_state.pos_mode,
     key="seg_pos_mode",
 )
@@ -1755,28 +1746,27 @@ pos_clicked = st.segmented_control(
 if pos_clicked and pos_clicked != st.session_state.pos_mode:
     st.session_state.pos_mode = pos_clicked
     clear_question_widget_keys()
-    new_quiz = build_quiz(st.session_state.quiz_type)  # 현재 유형 유지
+    new_quiz = build_quiz(st.session_state.quiz_type)
     start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
     st.rerun()
 
-st.markdown("### 출제 유형")
+st.markdown('<div class="control-title">유형</div>', unsafe_allow_html=True)
 
 clicked = st.segmented_control(
     label="",
     options=available_types,
-    format_func=lambda x: ("✅ " + quiz_label_map.get(x, x)) if x == st.session_state.quiz_type else quiz_label_map.get(x, x),
+    format_func=lambda x: quiz_label_map.get(x, x),  # ✅ 체크아이콘 제거(심플)
     default=st.session_state.quiz_type,
     key="seg_qtype",
 )
 
-# 선택 변경 시 퀴즈 재생성
 if clicked and clicked != st.session_state.quiz_type:
     clear_question_widget_keys()
     new_quiz = build_quiz(clicked)
     start_quiz_state(new_quiz, clicked, clear_wrongs=True)
     st.rerun()
 
-st.divider()
+st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)  # ✅ divider 대신 얇은 여백
 
 # ✅✅ 여기부터 추가/정리 (새 문제 + 초기화)
 cbtn1, cbtn2 = st.columns(2)
