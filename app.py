@@ -22,10 +22,10 @@ div.stButton > button {
   padding: 6px 10px !important;
   font-size: 13px !important;
   line-height: 1.1 !important;
-  white-space: nowrap !important;  /* ✅ 1줄 고정 */
+  white-space: nowrap !important;
 }
 
-/* 칼럼 사이 간격을 살짝 줄여서 한 줄에 더 잘 들어가게 */
+/* 칼럼 사이 간격 */
 div[data-testid="column"]{
   padding-left: 4px !important;
   padding-right: 4px !important;
@@ -39,8 +39,53 @@ div[data-baseweb="radio"] * ,
 label[data-baseweb="radio"] * {
   font-family: var(--jp-rounded) !important;
 }
+
+/* ✅ 카카오톡 느낌 Segmented Control (노란 트레이 + 선택만 선명) */
+div[data-baseweb="button-group"]{
+  background: rgba(254, 229, 0, 0.35) !important;  /* 카톡 노랑 트레이 */
+  padding: 6px !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(0,0,0,0.10) !important;
+  gap: 6px !important;
+}
+
+/* 버튼 공통 */
+div[data-baseweb="button-group"] button{
+  border-radius: 999px !important;
+  padding: 10px 14px !important;
+  font-weight: 900 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  white-space: nowrap !important;
+  color: rgba(0,0,0,0.75) !important; /* 기본 글자 */
+}
+
+/* ✅ 선택된 버튼: 카톡 노랑 꽉 채움 + 진한 글자 */
+div[data-baseweb="button-group"] button[aria-pressed="true"]{
+  background: rgba(254, 229, 0, 0.95) !important; /* 카톡 노랑 */
+  color: rgba(0,0,0,0.90) !important;
+  box-shadow: 0 8px 18px rgba(0,0,0,0.15) !important;
+}
+
+/* 선택 안된 버튼 */
+div[data-baseweb="button-group"] button[aria-pressed="false"]{
+  opacity: 0.9 !important;
+}
+
+/* (선택) 모바일에서 살짝 컴팩트 */
+@media (max-width: 480px){
+  div[data-baseweb="button-group"] button{
+    padding: 9px 12px !important;
+    font-size: 14px !important;
+  }
+}
+
+/* ✅✅✅ 여기까지 추가 끝 */
+
 </style>
 """, unsafe_allow_html=True)
+
 
 POS_MODE_MAP = {
     "i_adj": "い형용사",
