@@ -1487,10 +1487,35 @@ def build_quiz(qtype: str) -> list[dict]:
     ensure_pools_ready()
     pos_mode = st.session_state.get("pos_mode", "i_adj")
 
-    # --- 1) 유형에 따라 base_for_reading / distractor_pool 결정 --- (기존 그대로)
-    # ... (생략: 선우님 기존 코드 유지)
+    # --- 0) ✅ base를 무조건 먼저 정의 (NameError 방지 핵심) ---
+    if pos_mode == "i_adj":
+        base = pool_i
+    elif pos_mode == "na_adj":
+        base = pool_na
+    elif pos_mode == "verb":
+        base = pool_v
+    else:  # mix_adj
+        base = pd.concat([pool_i, pool_na, pool_v], ignore_index=True)
 
-    # --- 2) '맞힌 단어 제외' 키 ---
+    # --- 1) 유형에 따라 base_for_reading / distractor_pool 결정 --- (선우님 기존 로직 그대로)
+    if qtype in ["reading", "kr2jp"]:
+        if pos_mode == "i_adj":
+            base_for_reading = pool_i_reading
+            distractor_pool = pool_i
+        elif pos_mode == "na_adj":
+            base_for_reading = pool_na_reading
+            distractor_pool = pool_na
+        elif pos_mode == "verb":
+            base_for_reading = pool_v_reading
+            distractor_pool = pool_v
+        else:
+            base_for_reading = pd.concat([pool_i_reading, pool_na_reading, pool_v_reading], ignore_index=True)
+            distractor_pool = pd.concat([pool_i, pool_na, pool_v], ignore_index=True)
+    else:
+        base_for_reading = base
+        distractor_pool = base
+
+    # --- 2) '맞힌 단어 제외' 키 (조합키) ---
     k = mastery_key(qtype=qtype, pos_mode=st.session_state.get("pos_mode"))
     mastered = st.session_state.get("mastered_words", {}).get(k, set())
 
@@ -1504,13 +1529,13 @@ def build_quiz(qtype: str) -> list[dict]:
         )
         return df[~ks.isin(mastered)].copy()
 
-    # ✅✅✅ mix_adj는 2:2:6 강제
+    # ✅✅✅ 3) mix_adj는 2:2:6 강제 (여기서 끝내고 return)
     if pos_mode == "mix_adj":
         n_i, n_na, n_v = 2, 2, 6  # N=10 기준
 
-        src_i  = _filter_mastered(pool_i_reading if qtype in ["reading","kr2jp"] else pool_i)
-        src_na = _filter_mastered(pool_na_reading if qtype in ["reading","kr2jp"] else pool_na)
-        src_v  = _filter_mastered(pool_v_reading if qtype in ["reading","kr2jp"] else pool_v)
+        src_i  = _filter_mastered(pool_i_reading  if qtype in ["reading", "kr2jp"] else pool_i)
+        src_na = _filter_mastered(pool_na_reading if qtype in ["reading", "kr2jp"] else pool_na)
+        src_v  = _filter_mastered(pool_v_reading  if qtype in ["reading", "kr2jp"] else pool_v)
 
         # ✅ 부족하면 '정복' 처리
         if len(src_i) < n_i or len(src_na) < n_na or len(src_v) < n_v:
@@ -1527,47 +1552,28 @@ def build_quiz(qtype: str) -> list[dict]:
             ignore_index=True,
         ).sample(frac=1).reset_index(drop=True)
 
-        # distractor 풀은 기존 로직 유지(혼합 전체 풀)
-        base_for_q = pd.concat([pool_i_reading, pool_na_reading, pool_v_reading], ignore_index=True) if qtype in ["reading","kr2jp"] else pd.concat([pool_i, pool_na, pool_v], ignore_index=True)
+        # distractor 풀은 혼합 전체 풀 사용
+        base_for_q = (
+            pd.concat([pool_i_reading, pool_na_reading, pool_v_reading], ignore_index=True)
+            if qtype in ["reading", "kr2jp"]
+            else pd.concat([pool_i, pool_na, pool_v], ignore_index=True)
+        )
         dist_for_q = pd.concat([pool_i, pool_na, pool_v], ignore_index=True)
 
         quiz = [make_question(sampled.iloc[i], qtype, base_for_q, dist_for_q) for i in range(N)]
         return quiz
 
-    # --- 3) '맞힌 단어 제외' 반영(유형별) ---
-    k = mastery_key(qtype=qtype, pos_mode=st.session_state.get("pos_mode"))
-    mastered = st.session_state.get("mastered_words", {}).get(k, set())
-  
+    # --- 4) mix_adj가 아니면: 기존 방식대로 base에서 필터 후 샘플링 ---
+    base_filtered = _filter_mastered(base)
 
-    if mastered:
-        base_filtered = base.copy()
-        key_series = (
-            base_filtered["jp_word"].astype(str).str.strip().replace({"": None})
-            .fillna(base_filtered["reading"].astype(str).str.strip())
-        )
-        base_filtered = base_filtered[~key_series.isin(mastered)].copy()
-    else:
-        base_filtered = base
-
-    # --- 4) 샘플링 가능 여부 체크 + fallback ---
     if len(base_filtered) < N:
         st.session_state.setdefault("mastery_done", {})
         st.session_state.mastery_done[k] = True
         return []
 
-
-    # --- 5) ✅ 실제 샘플링 + 문제 생성 + return (이게 반드시 있어야 함) ---
+    # --- 5) ✅ 실제 샘플링 + 문제 생성 + return ---
     if qtype in ["reading", "kr2jp"]:
-        # reading/kr2jp는 jp_word 없는 항목이 섞이면 불안정 → base_for_reading에도 동일한 필터 적용
-        if mastered:
-            bf = base_for_reading.copy()
-            key_series2 = (
-                bf["jp_word"].astype(str).str.strip().replace({"": None})
-                .fillna(bf["reading"].astype(str).str.strip())
-            )
-            base_for_reading_filtered = bf[~key_series2.isin(mastered)].copy()
-        else:
-            base_for_reading_filtered = base_for_reading
+        base_for_reading_filtered = _filter_mastered(base_for_reading)
 
         if len(base_for_reading_filtered) < N:
             base_for_reading_filtered = base_for_reading
