@@ -725,27 +725,14 @@ def to_kst_naive(x):
 # ✅ DB 함수
 # ============================================================
 
-def delete_all_learning_records(sb_authed, user_id: str):
-    """
-    🗑️ 전체 학습 기록 완전 초기화
-    - quiz_attempts: 마이페이지 최근 기록 / 오답 TOP10 원천
-    - profiles.progress: 새로고침 복원용 진행 데이터
-    """
-    # 1) 학습 기록(시도 기록) 전부 삭제
+def delete_all_learning_records(sb_authed, user_id):
     sb_authed.table("quiz_attempts").delete().eq("user_id", user_id).execute()
-
-    # 2) 진행중 복원(progress)도 같이 제거
     clear_progress_in_db(sb_authed, user_id)
+
+def _delete_all():
+    delete_all_learning_records(sb_authed_local, user_id_local)
+    return True
   
-def ensure_profile(sb_authed, user):
-    try:
-        sb_authed.table("profiles").upsert(
-            {"id": user.id, "email": getattr(user, "email", None)},
-            on_conflict="id",
-        ).execute()
-    except Exception:
-        pass
-      
 def ensure_profile(sb_authed, user):
     try:
         sb_authed.table("profiles").upsert(
@@ -1370,10 +1357,6 @@ def render_my_dashboard():
                 # DB 삭제
                 def _delete_all():
                     delete_all_learning_records(sb_authed_local, user_id_local)
-                    try:
-                        clear_progress_in_db(sb_authed_local, user_id_local)
-                    except Exception:
-                        pass
                     return True
 
                 run_db(_delete_all)
@@ -1680,38 +1663,6 @@ def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
         make_question(retry_df.iloc[i], qtype, base_for_distractor, base_for_distractor)
         for i in range(len(retry_df))
     ]
-
-        # --- 5) ✅ 실제 샘플링 + 문제 생성 + return (이게 빠져있었음) ---
-
-    # reading/kr2jp는 jp_word 없는 항목이 섞이면 불안정 → base_for_reading에도 동일한 필터 적용
-    if qtype in ["reading", "kr2jp"]:
-        if mastered:
-            bf = base_for_reading.copy()
-            key_series2 = (
-                bf["jp_word"].astype(str).str.strip().replace({"": None})
-                .fillna(bf["reading"].astype(str).str.strip())
-            )
-            base_for_reading_filtered = bf[~key_series2.isin(mastered)].copy()
-        else:
-            base_for_reading_filtered = base_for_reading
-
-        # 혹시 필터 후 부족하면 fallback
-        if len(base_for_reading_filtered) < N:
-            base_for_reading_filtered = base_for_reading
-
-        sampled = base_for_reading_filtered.sample(n=N, replace=False).reset_index(drop=True)
-        base_for_q = base_for_reading  # 보기(오답) 풀
-        dist_for_q = distractor_pool   # 뜻/보기 섞는 풀
-
-    else:
-        # meaning은 base_filtered에서 샘플링
-        sampled = base_filtered.sample(n=N, replace=False).reset_index(drop=True)
-        base_for_q = base_for_reading
-        dist_for_q = distractor_pool
-
-    quiz = [make_question(sampled.iloc[i], qtype, base_for_q, dist_for_q) for i in range(N)]
-    return quiz
-
 # ============================================================
 # ✅ 라우팅 (함수 정의 후, 여기서만 화면 전환)
 # ============================================================
@@ -1923,7 +1874,7 @@ with cbtn2:
         st.session_state.mastery_done[k_now] = False
 
         clear_question_widget_keys()
-        new_quiz = _safe_build_quiz_after_reset(st.session_state.quiz_type)
+        new_quiz = build_quiz(st.session_state.quiz_type)
         start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
 
         st.success(f"초기화 완료 (유형: {quiz_label_map[st.session_state.quiz_type]})")
