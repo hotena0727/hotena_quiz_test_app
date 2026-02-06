@@ -1308,66 +1308,19 @@ def render_admin_dashboard():
         st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
         return
 
-    # ============================================================
-    # 🗑️ 전체 학습 기록 완전 초기화 (추가)
-    # ============================================================
-    with st.expander("🗑️ 전체 학습 기록 완전 초기화", expanded=False):
-        st.warning("이 작업은 되돌릴 수 없습니다. (최근 기록/오답 TOP10/진행중 복원까지 모두 초기화됩니다.)")
-
-        agree = st.checkbox("삭제에 동의합니다.", key="chk_reset_all_agree")
-        confirm = st.text_input(
-            "확인 입력: DELETE",
-            value="",
-            placeholder="DELETE",
-            key="txt_reset_all_confirm",
-        )
-
-        if st.button("🗑️ 지금 완전 초기화", type="primary", use_container_width=True, key="btn_reset_all_records"):
-            if not agree or confirm.strip().upper() != "DELETE":
-                st.error("동의 체크 + 확인 입력(DELETE)이 필요합니다.")
-                st.stop()
-
-            try:
-                # ✅ DB 삭제는 run_db로 감싸는 게 안전 (토큰 만료 처리 일원화)
-                def _delete():
-                    return delete_all_learning_records(sb_authed_local, user_id_local)
-
-                run_db(_delete)
-
-                # ✅ 화면/세션도 함께 초기화 (마이페이지 지표 잔상 방지)
-                clear_question_widget_keys()
-                for k in [
-                    "history", "wrong_counter", "total_counter",
-                    "wrong_list", "quiz", "answers", "submitted",
-                    "saved_this_attempt", "stats_saved_this_attempt",
-                    "session_stats_applied_this_attempt",
-                    "quiz_version",
-                    "mastered_words", "mastery_banner_shown", "mastery_done",
-                    "progress_restored",
-                    "pool_ready",
-                ]:
-                    st.session_state.pop(k, None)
-
-                st.success("전체 학습 기록이 완전 초기화되었습니다.")
-                st.session_state.page = "quiz"
-                st.rerun()
-
-            except Exception as e:
-                st.error("초기화 실패: RLS 정책(삭제 권한) 또는 테이블/컬럼 확인이 필요합니다.")
-                st.exception(e)
-
-    st.divider()
-
-    def _fetch():
-        return fetch_recent_attempts(sb_authed_local, user_id_local, limit=50)
-
 def render_my_dashboard():
     st.subheader("📌 내 대시보드")
 
+    # ------------------------------------------------------------
+    # ← 돌아가기
+    # ------------------------------------------------------------
     if st.button("← 돌아가기", use_container_width=True, key="btn_my_back"):
         st.session_state.page = "quiz"
         st.rerun()
 
+    # ------------------------------------------------------------
+    # 로그인 / 유저 체크
+    # ------------------------------------------------------------
     u = st.session_state.get("user")
     if not u:
         st.warning("로그인 정보가 없습니다. 다시 로그인해 주세요.")
@@ -1380,66 +1333,75 @@ def render_my_dashboard():
         st.session_state.page = "quiz"
         st.stop()
 
-    level_local = globals().get("LEVEL", "N4")
-    n_local = globals().get("N", 10)
-    qlabel_table = globals().get("quiz_label_for_table", {})
-
     sb_authed_local = get_authed_sb()
     if sb_authed_local is None:
         st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
         return
 
-# ============================================================
-# 🗑️ 전체 학습 기록 완전 초기화
-# ============================================================
-with st.expander("🗑️ 전체 학습 기록 완전 초기화", expanded=False):
-    st.warning(
-        "이 작업은 되돌릴 수 없습니다.\n"
-        "(최근 기록 / 오답 TOP10 / 진행중 복원까지 모두 초기화됩니다.)"
-    )
+    # ============================================================
+    # 🗑️ 전체 학습 기록 완전 초기화
+    # ============================================================
+    st.divider()
 
-    agree = st.checkbox("삭제에 동의합니다.", key="chk_reset_all_agree")
-    confirm = st.text_input(
-        "확인 입력: DELETE",
-        placeholder="DELETE",
-        key="txt_reset_all_confirm",
-    )
+    with st.expander("🗑️ 전체 학습 기록 완전 초기화", expanded=False):
+        st.warning(
+            "이 작업은 되돌릴 수 없습니다.\n"
+            "(최근 기록 / 오답 TOP10 / 진행중 복원까지 모두 초기화됩니다.)"
+        )
 
-    if st.button(
-        "🗑️ 지금 완전 초기화",
-        type="primary",
-        use_container_width=True,
-        key="btn_reset_all_records",
-    ):
-        if not agree or confirm.strip().upper() != "DELETE":
-            st.error("동의 체크 + 확인 입력(DELETE)이 필요합니다.")
-            st.stop()
+        agree = st.checkbox("삭제에 동의합니다.", key="chk_reset_all_agree")
+        confirm = st.text_input(
+            "확인 입력: DELETE",
+            placeholder="DELETE",
+            key="txt_reset_all_confirm",
+        )
 
-        def _delete():
-            return delete_all_learning_records(sb_authed_local, user_id_local)
+        if st.button(
+            "🗑️ 지금 완전 초기화",
+            type="primary",
+            use_container_width=True,
+            key="btn_reset_all_records",
+        ):
+            if (not agree) or (confirm.strip().upper() != "DELETE"):
+                st.error("동의 체크 + 확인 입력(DELETE)이 필요합니다.")
+                st.stop()
 
-        run_db(_delete)
+            try:
+                # DB 삭제
+                def _delete_all():
+                    delete_all_learning_records(sb_authed_local, user_id_local)
+                    try:
+                        clear_progress_in_db(sb_authed_local, user_id_local)
+                    except Exception:
+                        pass
+                    return True
 
-        # 세션 데이터도 함께 초기화
-        clear_question_widget_keys()
-        for k in [
-            "history", "wrong_counter", "total_counter",
-            "wrong_list", "quiz", "answers", "submitted",
-            "saved_this_attempt", "stats_saved_this_attempt",
-            "session_stats_applied_this_attempt",
-            "quiz_version",
-            "mastered_words", "mastery_banner_shown", "mastery_done",
-            "progress_restored",
-            "pool_ready",
-        ]:
-            st.session_state.pop(k, None)
+                run_db(_delete_all)
 
-        st.success("전체 학습 기록이 완전 초기화되었습니다.")
-        st.session_state.page = "quiz"
-        st.rerun()
+                # 세션 초기화
+                clear_question_widget_keys()
+                for k in [
+                    "history", "wrong_counter", "total_counter",
+                    "wrong_list", "quiz", "answers", "submitted",
+                    "saved_this_attempt", "stats_saved_this_attempt",
+                    "session_stats_applied_this_attempt",
+                    "quiz_version",
+                    "mastered_words", "mastery_banner_shown", "mastery_done",
+                    "progress_restored", "pool_ready",
+                ]:
+                    st.session_state.pop(k, None)
 
-st.divider()
+                st.success("✅ 전체 학습 기록이 완전 초기화되었습니다.")
+                st.session_state.page = "quiz"
+                st.rerun()
 
+            except Exception as e:
+                st.error("초기화 실패: RLS 정책(삭제 권한) 또는 테이블/컬럼 확인이 필요합니다.")
+                st.exception(e)
+
+    # ============================================================
+    # 최근 기록 불러오기 (본인 것만)
+    # ============================================================
     def _fetch():
         return fetch_recent_attempts(sb_authed_local, user_id_local, limit=50)
 
@@ -1454,9 +1416,11 @@ st.divider()
         st.info("아직 저장된 기록이 없습니다. 문제를 풀고 제출하면 기록이 쌓여요.")
         return
 
+    # ------------------------------------------------------------
+    # 통계 요약
+    # ------------------------------------------------------------
     hist = pd.DataFrame(res.data).copy()
     hist["created_at"] = to_kst_naive(hist["created_at"])
-    hist["유형"] = hist["pos_mode"].map(lambda x: qlabel_table.get(x, x))
     hist["정답률"] = (hist["score"] / hist["quiz_len"]).fillna(0.0)
 
     avg_rate = float(hist["정답률"].mean() * 100)
@@ -1466,13 +1430,18 @@ st.divider()
 
     c1, c2, c3 = st.columns(3)
     c1.metric("최근 평균(최대 50회)", f"{avg_rate:.0f}%")
-    c2.metric("최고 점수", f"{best} / {n_local}")
+    c2.metric("최고 점수", f"{best} / {last_total}")
     c3.metric("최근 점수", f"{last_score} / {last_total}")
 
+    # ------------------------------------------------------------
+    # ❌ 자주 틀린 단어 TOP10
+    # ------------------------------------------------------------
     st.divider()
     st.markdown("### ❌ 자주 틀린 단어 TOP10 (최근 50회)")
 
+    from collections import Counter
     counter = Counter()
+
     for row in (res.data or []):
         wl = row.get("wrong_list") or []
         if isinstance(wl, list):
@@ -1489,7 +1458,12 @@ st.divider()
     for i, (w, cnt) in enumerate(top10, start=1):
         st.write(f"{i}. {w} (오답 {cnt}회)")
 
-    if st.button("❌ 이 TOP10으로 시험 보기", type="primary", use_container_width=True, key="btn_quiz_from_top10"):
+    if st.button(
+        "❌ 이 TOP10으로 시험 보기",
+        type="primary",
+        use_container_width=True,
+        key="btn_quiz_from_top10",
+    ):
         clear_question_widget_keys()
         weak_wrong_list = [{"단어": w} for w, _ in top10]
         retry_quiz = build_quiz_from_wrongs(weak_wrong_list, st.session_state.quiz_type)
@@ -1497,6 +1471,7 @@ st.divider()
         st.session_state["_scroll_top_once"] = True
         st.session_state.page = "quiz"
         st.rerun()
+        
 # ============================================================
 # ✅ 퀴즈 로직: (마이페이지에서도 쓰므로 라우팅보다 위에 있어야 함)
 # ============================================================
