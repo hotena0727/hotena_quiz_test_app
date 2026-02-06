@@ -1821,8 +1821,6 @@ if clicked and clicked != st.session_state.quiz_type:
 # ✅✅✅ 유형 밑 '정복 안내' (스샷처럼)
 ensure_mastery_banner_shape()
 k_now = mastery_key()
-if st.session_state.mastery_done.get(k_now, False):
-    st.caption("✅ 이미 이 유형은 모두 정복했습니다.")
 
 st.divider()
 
