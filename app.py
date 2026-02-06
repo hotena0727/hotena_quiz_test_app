@@ -1183,7 +1183,7 @@ if "quiz_type" not in st.session_state or st.session_state.get("quiz_type") not 
     st.session_state.quiz_type = available_types[0]
 
 # ✅ 3) title은 “복원/보정” 끝난 다음에 출력
-st.title(f"{POS_MODE_MAP.get(st.session_state.pos_mode)} 퀴즈")
+st.title("✨ 마법의 단어장")
 
 # ✅✅ (2) 프로필 upsert / 출석 체크는 라우팅 전에 1번만
 if sb_authed is not None:
