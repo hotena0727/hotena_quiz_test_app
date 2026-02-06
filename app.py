@@ -1195,7 +1195,10 @@ if "quiz_type" not in st.session_state or st.session_state.get("quiz_type") not 
     st.session_state.quiz_type = available_types[0]
 
 # ✅ 3) title은 “복원/보정” 끝난 다음에 출력
-st.markdown('<div class="jp" style="font-size:26px; font-weight:900; margin:6px 0 10px 0;">✨ 마법의 단어장</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="jp" style="font-size:36px; font-weight:900; line-height:1.12; margin:8px 0 12px 0;">✨ 마법의 단어장</div>',
+    unsafe_allow_html=True
+)
 
 # ✅✅ (2) 프로필 upsert / 출석 체크는 라우팅 전에 1번만
 if sb_authed is not None:
