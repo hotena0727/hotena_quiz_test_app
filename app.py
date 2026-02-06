@@ -1389,6 +1389,57 @@ def render_my_dashboard():
         st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
         return
 
+# ============================================================
+# 🗑️ 전체 학습 기록 완전 초기화
+# ============================================================
+with st.expander("🗑️ 전체 학습 기록 완전 초기화", expanded=False):
+    st.warning(
+        "이 작업은 되돌릴 수 없습니다.\n"
+        "(최근 기록 / 오답 TOP10 / 진행중 복원까지 모두 초기화됩니다.)"
+    )
+
+    agree = st.checkbox("삭제에 동의합니다.", key="chk_reset_all_agree")
+    confirm = st.text_input(
+        "확인 입력: DELETE",
+        placeholder="DELETE",
+        key="txt_reset_all_confirm",
+    )
+
+    if st.button(
+        "🗑️ 지금 완전 초기화",
+        type="primary",
+        use_container_width=True,
+        key="btn_reset_all_records",
+    ):
+        if not agree or confirm.strip().upper() != "DELETE":
+            st.error("동의 체크 + 확인 입력(DELETE)이 필요합니다.")
+            st.stop()
+
+        def _delete():
+            return delete_all_learning_records(sb_authed_local, user_id_local)
+
+        run_db(_delete)
+
+        # 세션 데이터도 함께 초기화
+        clear_question_widget_keys()
+        for k in [
+            "history", "wrong_counter", "total_counter",
+            "wrong_list", "quiz", "answers", "submitted",
+            "saved_this_attempt", "stats_saved_this_attempt",
+            "session_stats_applied_this_attempt",
+            "quiz_version",
+            "mastered_words", "mastery_banner_shown", "mastery_done",
+            "progress_restored",
+            "pool_ready",
+        ]:
+            st.session_state.pop(k, None)
+
+        st.success("전체 학습 기록이 완전 초기화되었습니다.")
+        st.session_state.page = "quiz"
+        st.rerun()
+
+st.divider()
+
     def _fetch():
         return fetch_recent_attempts(sb_authed_local, user_id_local, limit=50)
 
