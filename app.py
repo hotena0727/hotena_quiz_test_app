@@ -1877,11 +1877,11 @@ with cbtn2:
         st.session_state["_scroll_top_once"] = True
         st.rerun()
 
-# ✅✅✅ (추가) 정복 안내 문구를 "버튼 아래"에서 딱 1번만 출력
+# ✅✅✅ (추가) 정복 안내 (1안+2안)
 k_now = mastery_key()
 if st.session_state.get("mastery_done", {}).get(k_now, False):
-    st.info("✅ 이미 이 유형은 모두 정복했습니다. (초기화하거나 다른 유형을 선택해 주세요.)")
-
+    st.success("🏆 이 유형을 완전히 정복했어요!")  # ✅ 1안
+    st.caption("👉 다른 품사/유형을 선택하거나, '맞힌 단어 제외 초기화'로 다시 시작할 수 있어요.")  # ✅ 2안
         
 # ============================================================
 # ✅ answers 길이 자동 맞춤 (quiz 안전 보정)
