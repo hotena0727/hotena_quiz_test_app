@@ -162,6 +162,7 @@ st.markdown('<div id="__TOP__"></div>', unsafe_allow_html=True)
 def mastery_key(qtype: str | None = None, pos_mode: str | None = None) -> str:
     qt = qtype or st.session_state.get("quiz_type", "reading")
     pm = pos_mode or st.session_state.get("pos_mode", "i_adj")
+    return f"{pm}|{qt}"
 
 def scroll_to_top(nonce: int = 0):
     components.html(
@@ -1753,10 +1754,6 @@ if (not is_mastered_done) and (not isinstance(st.session_state.quiz, list) or le
     if len(st.session_state.quiz) == 0:
         st.error("퀴즈 생성 결과가 계속 0개입니다. build_quiz()에서 빈 리스트가 나오는 상태예요.")
         st.stop()
-
-# ✅ 정복 상태면 안내만
-if is_mastered_done:
-    st.info("✅ 이미 이 유형은 모두 정복했습니다. (초기화하거나 다른 유형을 선택해 주세요.)")
     
 # ============================================================
 # ✅ 상단 UI (품사 / 출제유형)
@@ -1831,7 +1828,7 @@ with cbtn1:
     if st.button("🔄 새 문제(랜덤 10문항)", use_container_width=True, key="btn_new_random_10"):
         k_now = mastery_key()
         if st.session_state.get("mastery_done", {}).get(k_now, False):
-            st.info("✅ 이미 이 유형은 모두 정복했습니다. (초기화하거나 다른 유형을 선택해 주세요.)")
+            # ✅ 여기서 안내 띄우지 말고, 그냥 스크롤+리런만
             st.session_state["_scroll_top_once"] = True
             st.rerun()
 
