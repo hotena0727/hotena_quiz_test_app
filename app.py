@@ -1334,12 +1334,7 @@ def render_my_dashboard():
             "(최근 기록 / 오답 TOP10 / 진행중 복원까지 모두 초기화됩니다.)"
         )
 
-        agree = st.checkbox("삭제에 동의합니다.", key="chk_reset_all_agree")
-        confirm = st.text_input(
-            "확인 입력: DELETE",
-            placeholder="DELETE",
-            key="txt_reset_all_confirm",
-        )
+        agree = st.checkbox("초기화에 동의합니다.", key="chk_reset_all_agree")
 
         if st.button(
             "🗑️ 지금 완전 초기화",
@@ -1347,8 +1342,8 @@ def render_my_dashboard():
             use_container_width=True,
             key="btn_reset_all_records",
         ):
-            if (not agree) or (confirm.strip().upper() != "DELETE"):
-                st.error("동의 체크 + 확인 입력(DELETE)이 필요합니다.")
+            if not agree:
+                st.error("초기화에 동의해 주세요.")
                 st.stop()
 
             try:
