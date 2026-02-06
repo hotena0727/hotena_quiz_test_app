@@ -1485,36 +1485,54 @@ def make_question(row: pd.Series, qtype: str, base_pool_for_reading: pd.DataFram
 # ✅✅✅ [추가] 랜덤 N문항 생성 (세그먼트/새문제/세션초기화에서 공용)
 def build_quiz(qtype: str) -> list[dict]:
     ensure_pools_ready()
-
     pos_mode = st.session_state.get("pos_mode", "i_adj")
 
-    # --- 1) pos_mode에 따라 base 구성 ---
-    if pos_mode == "i_adj":
-        base = pool_i
-    elif pos_mode == "na_adj":
-        base = pool_na
-    elif pos_mode == "verb":
-        base = pool_v
-    else:  # mix_adj
-        base = pd.concat([pool_i, pool_na, pool_v], ignore_index=True)
+    # --- 1) 유형에 따라 base_for_reading / distractor_pool 결정 --- (기존 그대로)
+    # ... (생략: 선우님 기존 코드 유지)
 
-    # --- 2) 유형에 따라 base_for_reading / distractor_pool 결정 ---
-    if qtype in ["reading", "kr2jp"]:
-        if pos_mode == "i_adj":
-            base_for_reading = pool_i_reading
-            distractor_pool = pool_i
-        elif pos_mode == "na_adj":
-            base_for_reading = pool_na_reading
-            distractor_pool = pool_na
-        elif pos_mode == "verb":
-            base_for_reading = pool_v_reading
-            distractor_pool = pool_v
-        else:
-            base_for_reading = pd.concat([pool_i_reading, pool_na_reading, pool_v_reading], ignore_index=True)
-            distractor_pool = pd.concat([pool_i, pool_na, pool_v], ignore_index=True)
-    else:
-        base_for_reading = base
-        distractor_pool = base
+    # --- 2) '맞힌 단어 제외' 키 ---
+    k = mastery_key(qtype=qtype, pos_mode=st.session_state.get("pos_mode"))
+    mastered = st.session_state.get("mastered_words", {}).get(k, set())
+
+    # ✅ 공통: master 필터 함수
+    def _filter_mastered(df: pd.DataFrame) -> pd.DataFrame:
+        if not mastered:
+            return df
+        ks = (
+            df["jp_word"].astype(str).str.strip().replace({"": None})
+            .fillna(df["reading"].astype(str).str.strip())
+        )
+        return df[~ks.isin(mastered)].copy()
+
+    # ✅✅✅ mix_adj는 2:2:6 강제
+    if pos_mode == "mix_adj":
+        n_i, n_na, n_v = 2, 2, 6  # N=10 기준
+
+        src_i  = _filter_mastered(pool_i_reading if qtype in ["reading","kr2jp"] else pool_i)
+        src_na = _filter_mastered(pool_na_reading if qtype in ["reading","kr2jp"] else pool_na)
+        src_v  = _filter_mastered(pool_v_reading if qtype in ["reading","kr2jp"] else pool_v)
+
+        # ✅ 부족하면 '정복' 처리
+        if len(src_i) < n_i or len(src_na) < n_na or len(src_v) < n_v:
+            st.session_state.setdefault("mastery_done", {})
+            st.session_state.mastery_done[k] = True
+            return []
+
+        sampled = pd.concat(
+            [
+                src_i.sample(n=n_i, replace=False),
+                src_na.sample(n=n_na, replace=False),
+                src_v.sample(n=n_v, replace=False),
+            ],
+            ignore_index=True,
+        ).sample(frac=1).reset_index(drop=True)
+
+        # distractor 풀은 기존 로직 유지(혼합 전체 풀)
+        base_for_q = pd.concat([pool_i_reading, pool_na_reading, pool_v_reading], ignore_index=True) if qtype in ["reading","kr2jp"] else pd.concat([pool_i, pool_na, pool_v], ignore_index=True)
+        dist_for_q = pd.concat([pool_i, pool_na, pool_v], ignore_index=True)
+
+        quiz = [make_question(sampled.iloc[i], qtype, base_for_q, dist_for_q) for i in range(N)]
+        return quiz
 
     # --- 3) '맞힌 단어 제외' 반영(유형별) ---
     k = mastery_key(qtype=qtype, pos_mode=st.session_state.get("pos_mode"))
