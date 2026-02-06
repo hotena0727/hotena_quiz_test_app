@@ -721,6 +721,31 @@ def to_kst_naive(x):
 # ============================================================
 # ✅ DB 함수
 # ============================================================
+# ============================================================
+# ✅ DB 함수
+# ============================================================
+
+def delete_all_learning_records(sb_authed, user_id: str):
+    """
+    🗑️ 전체 학습 기록 완전 초기화
+    - quiz_attempts: 마이페이지 최근 기록 / 오답 TOP10 원천
+    - profiles.progress: 새로고침 복원용 진행 데이터
+    """
+    # 1) 학습 기록(시도 기록) 전부 삭제
+    sb_authed.table("quiz_attempts").delete().eq("user_id", user_id).execute()
+
+    # 2) 진행중 복원(progress)도 같이 제거
+    clear_progress_in_db(sb_authed, user_id)
+  
+def ensure_profile(sb_authed, user):
+    try:
+        sb_authed.table("profiles").upsert(
+            {"id": user.id, "email": getattr(user, "email", None)},
+            on_conflict="id",
+        ).execute()
+    except Exception:
+        pass
+      
 def ensure_profile(sb_authed, user):
     try:
         sb_authed.table("profiles").upsert(
@@ -1278,66 +1303,63 @@ def render_admin_dashboard():
         st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
         return
 
-    show_debug = st.toggle("디버그 정보 표시", value=False, key="toggle_admin_debug")
+    sb_authed_local = get_authed_sb()
+    if sb_authed_local is None:
+        st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
+        return
+
+    # ============================================================
+    # 🗑️ 전체 학습 기록 완전 초기화 (추가)
+    # ============================================================
+    with st.expander("🗑️ 전체 학습 기록 완전 초기화", expanded=False):
+        st.warning("이 작업은 되돌릴 수 없습니다. (최근 기록/오답 TOP10/진행중 복원까지 모두 초기화됩니다.)")
+
+        agree = st.checkbox("삭제에 동의합니다.", key="chk_reset_all_agree")
+        confirm = st.text_input(
+            "확인 입력: DELETE",
+            value="",
+            placeholder="DELETE",
+            key="txt_reset_all_confirm",
+        )
+
+        if st.button("🗑️ 지금 완전 초기화", type="primary", use_container_width=True, key="btn_reset_all_records"):
+            if not agree or confirm.strip().upper() != "DELETE":
+                st.error("동의 체크 + 확인 입력(DELETE)이 필요합니다.")
+                st.stop()
+
+            try:
+                # ✅ DB 삭제는 run_db로 감싸는 게 안전 (토큰 만료 처리 일원화)
+                def _delete():
+                    return delete_all_learning_records(sb_authed_local, user_id_local)
+
+                run_db(_delete)
+
+                # ✅ 화면/세션도 함께 초기화 (마이페이지 지표 잔상 방지)
+                clear_question_widget_keys()
+                for k in [
+                    "history", "wrong_counter", "total_counter",
+                    "wrong_list", "quiz", "answers", "submitted",
+                    "saved_this_attempt", "stats_saved_this_attempt",
+                    "session_stats_applied_this_attempt",
+                    "quiz_version",
+                    "mastered_words", "mastery_banner_shown", "mastery_done",
+                    "progress_restored",
+                    "pool_ready",
+                ]:
+                    st.session_state.pop(k, None)
+
+                st.success("전체 학습 기록이 완전 초기화되었습니다.")
+                st.session_state.page = "quiz"
+                st.rerun()
+
+            except Exception as e:
+                st.error("초기화 실패: RLS 정책(삭제 권한) 또는 테이블/컬럼 확인이 필요합니다.")
+                st.exception(e)
+
+    st.divider()
 
     def _fetch():
-        return fetch_all_attempts_admin(sb_authed_local, limit=500)
-
-    try:
-        res = run_db(_fetch)
-    except Exception as e:
-        st.error("❌ 관리자 조회 실패 (RLS/권한/테이블/컬럼 확인 필요)")
-        st.write(str(e))
-        return
-
-    rows = len(res.data) if getattr(res, "data", None) else 0
-    if show_debug:
-        st.caption(f"DEBUG: quiz_attempts rows = {rows}")
-
-    if rows <= 0:
-        st.info("데이터가 없거나 RLS 정책 때문에 전체 조회가 막혀 있습니다.")
-        st.write("- Supabase Table Editor에서 quiz_attempts에 실제 데이터가 있는지 확인")
-        st.write("- 데이터가 있는데도 0건이면 → RLS에서 관리자 전체 조회 허용 정책이 필요합니다.")
-        return
-
-    df_admin = pd.DataFrame(res.data).copy()
-    df_admin["created_at"] = to_kst_naive(df_admin["created_at"])
-
-    c1, c2, c3 = st.columns(3)
-    c1.metric("최근 500건", rows)
-    c2.metric("평균 점수", f"{df_admin['score'].mean():.2f}")
-    c3.metric("평균 오답", f"{df_admin['wrong_count'].mean():.2f}")
-
-    counter = Counter()
-    for row in (res.data or []):
-        wl = row.get("wrong_list") or []
-        if isinstance(wl, list):
-            for w in wl:
-                word = str(w.get("단어", "")).strip()
-                if word:
-                    counter[word] += 1
-
-    top10 = counter.most_common(10)
-    if not top10:
-        st.info("오답 데이터가 없습니다.")
-        return
-
-    st.markdown('<div class="weak-wrap">', unsafe_allow_html=True)
-    for idx, (word, cnt) in enumerate(top10, start=1):
-        st.markdown(
-            f"""
-            <div class="weak-card">
-              <div class="weak-word">{idx}. {word}</div>
-              <div class="weak-badge">오답 {cnt}회</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    csv = df_admin.to_csv(index=False).encode("utf-8-sig")
-    st.download_button("⬇️ CSV 다운로드", csv, file_name="quiz_attempts_admin.csv", use_container_width=True, key="btn_admin_csv")
-
+        return fetch_recent_attempts(sb_authed_local, user_id_local, limit=50)
 
 def render_my_dashboard():
     st.subheader("📌 내 대시보드")
