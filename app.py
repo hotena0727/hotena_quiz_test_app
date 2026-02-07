@@ -1575,11 +1575,27 @@ def render_my_dashboard():
     top10 = counter.most_common(10)
 
     # ✅ 화면 표시
+    cards = []
     for i, (w, cnt) in enumerate(top10, start=1):
-        st.markdown(
-            f'<div class="jp">{i}. {w} (오답 {cnt}회)</div>',
-            unsafe_allow_html=True
+        cards.append(
+            f"""
+    <div class="top10-card">
+      <div class="top10-row">
+        <div>
+          <div class="top10-title">#{i} {w}</div>
+          <div class="top10-sub">최근 50회 기준</div>
+        </div>
+        <div class="top10-badge">오답 {cnt}회</div>
+      </div>
+    </div>
+    """
         )
+
+    st.markdown(
+        '<div class="jp top10-grid">' + "\n".join(cards) + "</div>",
+        unsafe_allow_html=True,
+    )
+
   
     # ✅ TOP10으로 시험 보기
     if st.button(
