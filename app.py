@@ -89,6 +89,31 @@ div[data-baseweb="button-group"] button{
   white-space: nowrap !important;
 }
 
+/* ✅ 타이틀 오른쪽 환영영역(글씨 30% 감소 느낌) */
+.headbar{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:12px;
+  margin:8px 0 6px 0;
+}
+.headtitle{
+  font-size:34px;
+  font-weight:900;
+  line-height:1.15;
+}
+.headhello{
+  font-size: 13px;        /* 기존 13 기준이면 더 줄이고 싶으면 12 */
+  font-weight:700;
+  opacity:.88;
+  white-space: nowrap;
+}
+.headhello .mail{
+  font-weight:600;
+  opacity:.75;
+  margin-left:8px;
+}
+
 div[data-baseweb="button-group"] button[aria-pressed="true"]{
   background: rgba(255,255,255,0.92) !important;
   box-shadow: 0 6px 14px rgba(0,0,0,0.10) !important;
@@ -1278,11 +1303,18 @@ if "quiz_type" not in st.session_state or st.session_state.get("quiz_type") not 
 
 # ✅ 3) title + topcard 순서: 타이틀 → (바로 아래) 환영/이메일/버튼
 if st.session_state.get("page") != "home":
+    u = st.session_state.get("user")
+    email = (getattr(u, "email", None) if u else None) or st.session_state.get("login_email", "")
+
     st.markdown(
-        '<div class="jp" style="font-size:34px; font-weight:900; line-height:1.15; margin:8px 0 6px 0;">✨ 마법의 단어장</div>',
+        f"""
+<div class="jp headbar">
+  <div class="headtitle">✨ 마법의 단어장</div>
+  <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
+</div>
+""",
         unsafe_allow_html=True
     )
-    render_topcard()  # ✅ 타이틀 아래로 이동
 
 # ✅✅ (2) 프로필 upsert / 출석 체크는 라우팅 전에 1번만
 if sb_authed is not None:
