@@ -590,7 +590,7 @@ def mark_progress_dirty():
     if (sb_authed_local is None) or (u is None):
         return
 
-    # ✅ 너무 자주 저장하지 않게 1.0초 쿨다운(원하면 0.3~2초로 조절)
+    # ✅ 너무 자주 저장하지 않게 10.0초 쿨다운(원하면 0.3~2초로 조절)
     now = time.time()
     last = st.session_state.get("_last_progress_save_ts", 0.0)
     if now - last < 10.0:
@@ -788,7 +788,8 @@ def save_attempt_to_db(sb_authed, user_id, user_email, level, quiz_type, quiz_le
         "user_id": user_id,
         "user_email": user_email,
         "level": level,
-        "pos_mode": quiz_type,
+        "pos_mode": st.session_state.get("pos_mode", "i_adj"),  # ✅ 품사 모드
+        "quiz_type": quiz_type,                                  # ✅ 유형 컬럼이 DB에 있으면 추천
         "quiz_len": int(quiz_len),
         "score": int(score),
         "wrong_count": int(len(wrong_list)),
@@ -1594,9 +1595,6 @@ def go_quiz_from_home():
     reset_quiz_state_only()
     st.session_state.page = "quiz"
     st.session_state["_scroll_top_once"] = True
-
-def render_home():
-    email = getattr(st.session_state.get("user"), "email", "") or st.session_state.get("login_email", "")
 
 def render_home():
     u = st.session_state.get("user")
