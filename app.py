@@ -1353,7 +1353,7 @@ if st.session_state.get("page") != "home":
     st.markdown(
         f"""
 <div class="jp headbar">
-  <div class="headtitle">✨ 하테나일본어 마법의 단어장</div>
+  <div class="headtitle">✨ 마법의 단어장</div>
   <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
 </div>
 """,
@@ -1590,7 +1590,7 @@ def render_home():
     st.markdown(
         f"""
 <div class="jp headbar">
-  <div class="headtitle">✨ 마법의 단어장</div>
+  <div class="headtitle">✨ 하테나일본어 마법의 단어장</div>
   <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
 </div>
 """,
