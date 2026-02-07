@@ -1398,8 +1398,6 @@ def nav_to(page: str, scroll_top: bool = True):
     st.session_state.page = page
     if scroll_top:
         st.session_state["_scroll_top_once"] = True
-        
-    render_topcard()   # ✅✅✅ 이 줄 추가!
 
 # ✅✅ (2) 프로필 upsert / 출석 체크는 라우팅 전에 1번만
 if sb_authed is not None:
@@ -1992,6 +1990,8 @@ if st.session_state.page == "my":
         st.error("마이페이지에서 예외가 발생했습니다. 아래 Traceback을 확인해 주세요.")
         st.code(traceback.format_exc())
     st.stop()
+    
+render_topcard()       # ✅ 상단 카드(관리자/마이페이지/로그아웃)
 
 # ============================================================
 # ✅ 상단: 오늘의 목표(루틴) + 연속 출석 배지
