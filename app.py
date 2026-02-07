@@ -931,7 +931,48 @@ def get_available_quiz_types() -> list[str]:
 # ✅ 로그인 UI
 # ============================================================
 def auth_box():
-    st.subheader("로그인")
+    # ✅ [학습 앱] 로그인 첫 화면 (1안: 깔끔/안정)
+    st.markdown(
+        """
+<div class="jp" style="margin: 8px 0 14px 0;">
+  <div style="
+    border:1px solid rgba(120,120,120,0.18);
+    border-radius:18px;
+    padding:16px 16px;
+    background: rgba(255,255,255,0.03);
+  ">
+    <div style="font-weight:900; font-size:22px; line-height:1.15;">
+      ✨ 마법의 단어장
+    </div>
+    <div style="margin-top:6px; opacity:.85; font-size:13px; line-height:1.55;">
+      하루 10문항으로 가볍게 루틴을 만들어요.<br/>
+      정답은 저장되고, 오답은 다시 풀 수 있어요.
+    </div>
+
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+      <span style="padding:6px 10px; border-radius:999px; border:1px solid rgba(120,120,120,0.22); background:rgba(255,255,255,0.03); font-size:12px; font-weight:800;">
+        ✅ 품사/유형 선택
+      </span>
+      <span style="padding:6px 10px; border-radius:999px; border:1px solid rgba(120,120,120,0.22); background:rgba(255,255,255,0.03); font-size:12px; font-weight:800;">
+        🎯 오늘의 목표 루틴
+      </span>
+      <span style="padding:6px 10px; border-radius:999px; border:1px solid rgba(120,120,120,0.22); background:rgba(255,255,255,0.03); font-size:12px; font-weight:800;">
+        ❌ 오답 TOP10
+      </span>
+    </div>
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+    # ✅ 로그인 박스 폭을 보기 좋게(학습 앱 느낌)
+    st.markdown("<div style='max-width:520px; margin:0 auto;'>", unsafe_allow_html=True)
+
+    st.markdown(
+        '<div class="jp" style="font-weight:900; font-size:16px; margin:6px 0 6px 0;">로그인</div>',
+        unsafe_allow_html=True
+    )
 
     qp = st.query_params
     came_from_email_link = any(k in qp for k in ["code", "token", "type", "access_token", "refresh_token"])
