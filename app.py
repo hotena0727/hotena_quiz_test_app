@@ -1190,6 +1190,10 @@ if not ok and (cookies.get("refresh_token") or cookies.get("access_token")):
 
 require_login()
 
+# ✅ 로그인 성공 후 첫 진입은 홈으로 유도 (퀴즈 강제 진입 방지)
+if st.session_state.get("page") not in ["home", "my", "admin"]:
+    st.session_state.page = "home"
+
 user = st.session_state.user
 user_id = user.id
 user_email = getattr(user, "email", None) or st.session_state.get("login_email")
@@ -1203,15 +1207,10 @@ try:
 except Exception:
     available_types = QUIZ_TYPES_USER
 
-if sb_authed is not None:
-    # ✅ 1) progress 복원 (pos_mode/quiz_type가 여기서 들어옴)
-    if not st.session_state.get("progress_restored"):
-        try:
-            restore_progress_from_db(sb_authed, user_id)
-        except Exception as e:
-            st.caption(f"progress 복원 실패(무시하고 새로 시작): {e}")
-        finally:
-            st.session_state.progress_restored = True
+# ✅ progress 자동복원 OFF
+# - 로그인만 유지하고, 문제 화면은 홈에서 "시작"을 눌러 들어가게 함
+# - progress는 DB에 저장되더라도, 자동으로 불러오지 않음
+st.session_state.progress_restored = True
 
 # ✅ 2) 복원 이후에만 기본값 보정 (복원값이 있으면 그대로 유지)
 if "pos_mode" not in st.session_state or st.session_state.get("pos_mode") not in POS_MODES:
@@ -1294,8 +1293,9 @@ def render_topcard():
 
 # page 기본값
 # page 기본값
+# page 기본값 (앱 첫 진입은 홈으로)
 if "page" not in st.session_state:
-    st.session_state.page = "quiz"
+    st.session_state.page = "home"
 
 render_topcard()
 
@@ -1482,6 +1482,68 @@ def render_my_dashboard():
         st.session_state["_scroll_top_once"] = True
         st.session_state.page = "quiz"
         st.rerun()
+
+def reset_quiz_state_only():
+    """✅ 퀴즈 진행상태만 초기화 (로그인/마이페이지/출석/통계는 유지)"""
+    clear_question_widget_keys()
+    for k in ["quiz", "answers", "submitted", "wrong_list", "saved_this_attempt", "stats_saved_this_attempt",
+              "session_stats_applied_this_attempt"]:
+        st.session_state.pop(k, None)
+
+def render_home():
+    st.markdown("## ✨ 마법의 단어장")
+
+    # --- 오늘의 말(랜덤) ---
+    quotes = [
+        "배움은 매일 새로 시작해도 늦지 않다.",
+        "오늘의 한 문제는 내일의 자신감이다.",
+        "조금이라도 손을 움직인 날은 실패가 아니다.",
+        "완벽보다 ‘계속’이 더 강하다.",
+        "루틴은 작게, 지속은 길게.",
+    ]
+    q = random.choice(quotes)
+
+    st.markdown(
+        f"""
+<div class="jp" style="border:1px solid rgba(120,120,120,0.18);
+  border-radius:18px; padding:16px; background:rgba(255,255,255,0.03);">
+  <div style="font-weight:900; font-size:14px; opacity:.75;">오늘의 말</div>
+  <div style="margin-top:6px; font-weight:900; font-size:20px; line-height:1.3;">{q}</div>
+  <div style="margin-top:10px; opacity:.80; font-size:13px; line-height:1.55;">
+    오늘도 10문항만 가볍게 시작해 볼까요?
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+    st.divider()
+
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("▶ 오늘의 퀴즈 시작", type="primary", use_container_width=True, key="btn_home_start"):
+            # ✅ 자동복원/진행 이어풀기 느낌 제거: 시작할 때는 항상 리셋하고 새로 생성
+            reset_quiz_state_only()
+            st.session_state.page = "quiz"
+            st.session_state["_scroll_top_once"] = True
+            st.rerun()
+
+    with c2:
+        if st.button("📌 마이페이지", use_container_width=True, key="btn_home_my"):
+            st.session_state.page = "my"
+            st.rerun()
+
+    # (선우님 옵션) “최근 이어서”를 살리고 싶으면 버튼을 하나 더 두면 됩니다.
+    # 아래는 '선택 복원' 옵션 예시 (원하면 활성화하세요)
+    #
+    # if st.button("⏯️ 최근 이어서", use_container_width=True, key="btn_home_resume"):
+    #     sb_authed_local = get_authed_sb()
+    #     u = st.session_state.get("user")
+    #     if sb_authed_local and u:
+    #         restore_progress_from_db(sb_authed_local, u.id)
+    #     st.session_state.page = "quiz"
+    #     st.session_state["_scroll_top_once"] = True
+    #     st.rerun()
         
 # ============================================================
 # ✅ 퀴즈 로직: (마이페이지에서도 쓰므로 라우팅보다 위에 있어야 함)
@@ -1742,6 +1804,10 @@ def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
 # ✅ 라우팅 (함수 정의 후, 여기서만 화면 전환)
 # ============================================================
 import traceback
+
+if st.session_state.page == "home":
+    render_home()
+    st.stop()
 
 if st.session_state.page == "admin":
     if not is_admin():
