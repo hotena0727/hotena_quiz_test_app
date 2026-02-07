@@ -95,7 +95,7 @@ div[data-baseweb="button-group"] button{
   align-items:center;          /* baseline → center 로 변경 */
   justify-content:space-between;
   gap:12px;
-  margin:12px 0 6px 0;
+  margin:10px 0 16px 0;
   flex-wrap: nowrap;           /* ✅ 무조건 한 줄 */
 }
 
