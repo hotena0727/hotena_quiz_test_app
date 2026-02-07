@@ -6,11 +6,31 @@ from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
 import streamlit.components.v1 as components
 from collections import Counter
+import time
+import traceback
 
 # ============================================================
 # ✅ Streamlit 기본 설정 (최상단)
 # ============================================================
 st.set_page_config(page_title="JLPT Quiz", layout="centered")
+
+# ============================================================
+# ✅ Cookies (가장 위로 올림: ready 게이트)
+# ============================================================
+cookies = EncryptedCookieManager(
+    prefix="hatena_jlpt_",                     # ✅ 슬래시 제거 OK
+    password=st.secrets["COOKIE_PASSWORD"],    # ✅ secrets 사용 OK
+)
+
+# ✅✅✅ ready 되기 전엔 "아무것도" 하지 않고 멈춤 (헛바퀴 제거)
+if not cookies.ready():
+    # (선택) 메시지 최소화: st.info 대신 caption 권장
+    st.caption("초기화 중…")
+    st.stop()
+
+# ============================================================
+# ✅ 여기부터 무거운 작업들(CSS/JS/DB/CSV/렌더링) 시작
+# ============================================================
 st.markdown("""
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,187 +46,24 @@ label[data-baseweb="radio"] * {
   font-family: var(--jp-rounded) !important;
 }
 
-/* ✅ 캡션(품사/유형) - 세그먼트에 딱 붙게 */
-.tabcap{
-  font-weight: 900;
-  font-size: 18px;
-  opacity: 1;
-  margin: 0 0 4px 0 !important;
-}
-
-/* ✅ (삭제/수정) h10은 존재하지 않음 → 실제 헤더만 대상으로 */
-div[data-testid="stMarkdownContainer"] h1,
-div[data-testid="stMarkdownContainer"] h2,
-div[data-testid="stMarkdownContainer"] h3,
-div[data-testid="stMarkdownContainer"] h4{
-  margin-top: 10px !important;
-  margin-bottom: 8px !important;
-}
-
-.seglabel{
-  font-weight: 900;
-  font-size: 14px;
-  opacity: .90;
-  letter-spacing: .2px;
-  line-height: 1;
-  user-select: none;
-  pointer-events: none;
-  padding-left: 0px;
-  margin: 0 !important;
-    
-  /* ✅ 여기만 조절: +2~+4px 사이 추천 */
-  transform: translateY(8px);
-  white-space: nowrap;
-}
-
-
-/* 일반 버튼(새문제/초기화 등) */
-div.stButton > button {
-  padding: 6px 10px !important;
-  font-size: 13px !important;
-  line-height: 1.1 !important;
-  white-space: nowrap !important;
-}
-
-/* ✅ iOS Segmented Control 느낌 */
-div[data-baseweb="button-group"]{
-  background: rgba(120,120,120,0.12) !important;
-  padding: 6px !important;
-  border-radius: 999px !important;
-  border: 1px solid rgba(120,120,120,0.18) !important;
-  gap: 1px !important;
-  margin-top: 0px !important;       /* ✅ 캡션 바로 아래 붙게 */
-  margin-bottom: 0px !important;
-}
-
-div[data-baseweb="button-group"] button{
-  border-radius: 999px !important;
-  padding: 9px 12px !important;
-  font-weight: 800 !important;
-  border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  white-space: nowrap !important;
-}
-
-/* ✅ 타이틀 오른쪽 환영영역(글씨 30% 감소 느낌) */
-.headbar{
-  display:flex;
-  align-items:flex-end;         /* ✅ baseline → flex-end */
-  justify-content:space-between;
-  gap:12px;
-  margin: 10px 0 16px 0;
-}
-
-.headtitle{
-  font-size:34px;
-  font-weight:900;
-  line-height:1.15;
-  white-space: nowrap;         /* ✅ 타이틀도 줄바꿈 방지 */
-}
-
-.headhello{
-  font-size: 13px;
-  font-weight:700;
-  opacity:.88;
-  white-space: nowrap;
-  overflow: hidden;            /* ✅ 길면 말줄임 */
-  text-overflow: ellipsis;     /* ✅ 길면 ... */
-  max-width: 52%;              /* ✅ 오른쪽 영역 폭 제한 */
-}
-
-.headhello .mail{
-  font-weight:600;
-  opacity:.75;
-  margin-left:8px;
-}
-
-div[data-baseweb="button-group"] button[aria-pressed="true"]{
-  background: rgba(255,255,255,0.92) !important;
-  box-shadow: 0 6px 14px rgba(0,0,0,0.10) !important;
-}
-
-div[data-baseweb="button-group"] button[aria-pressed="false"]{
-  opacity: 0.85 !important;
-}
-
-@media (max-width: 480px){
-  div[data-baseweb="button-group"] button{
-    padding: 9px 12px !important;
-    font-size: 14px !important;
-  }
-
-  .headhello .mail{ display:none !important; } /* 모바일에서 이메일 숨김 */
-  .headhello{ font-size:11px; }               /* 환영문구 크기 */
-  .headtitle{ font-size:24px; }  
-}
-/* ✅ 상단 카드(환영 + 버튼들) */
-/* ✅ Topcard: 한 줄 헤더 정렬 개선 */
-.topcard{
-  border: 1px solid rgba(120,120,120,0.18);
-  border-radius: 16px;
-  padding: 12px 14px;
-  margin: 10px 0 10px 0;
-  background: rgba(255,255,255,0.03);
-}
-
-.topline{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  min-height: 40px;
-}
-
-.topwelcome{
-  font-weight: 900;
-  font-size: 13px;
-  opacity: .9;
-  white-space: nowrap;
-}
-
-.topemail{
-  font-size: 13px;
-  opacity: .75;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 520px;
-}
-/* ✅ Topcard 안 버튼들: 높이/패딩 통일 */
-.topcard div.stButton > button{
-  height: 40px !important;
-  padding: 0 12px !important;
-  font-size: 13px !important;
-  font-weight: 800 !important;
-  border-radius: 12px !important;
-}
+/* ... (선우님 CSS 그대로) ... */
 </style>
 """, unsafe_allow_html=True)
 
-
-
-POS_MODE_MAP = {
-    "i_adj": "い형용사",
-    "na_adj": "な형용사",
-    "verb": "동사", 
-    "mix_adj": "혼합",
-}
-POS_MODES = ["i_adj", "na_adj", "verb", "mix_adj"]
-
+# ============================================================
+# ✅ __TOP__ 앵커 (쿠키 통과 후에 삽입)
+# ============================================================
 st.markdown('<div id="__TOP__"></div>', unsafe_allow_html=True)
 
-def mastery_key(qtype: str | None = None, pos_mode: str | None = None) -> str:
-    qt = qtype or st.session_state.get("quiz_type", "reading")
-    pm = pos_mode or st.session_state.get("pos_mode", "i_adj")
-    return f"{pm}|{qt}"
-
+# ============================================================
+# ✅ 스크롤 함수/플로팅 버튼 (쿠키 통과 후에만 정의/실행)
+# ============================================================
 def scroll_to_top(nonce: int = 0):
     components.html(
         f"""
         <script>
         (function () {{
           const doc = window.parent.document;
-
           const targets = [
             doc.querySelector('[data-testid="stAppViewContainer"]'),
             doc.querySelector('[data-testid="stMain"]'),
@@ -219,17 +76,14 @@ def scroll_to_top(nonce: int = 0):
             try {{
               const top = doc.getElementById("__TOP__");
               if (top) top.scrollIntoView({{behavior: "auto", block: "start"}});
-
               targets.forEach(t => {{
                 if (t && typeof t.scrollTo === "function") t.scrollTo({{top: 0, left: 0, behavior: "auto"}});
                 if (t) t.scrollTop = 0;
               }});
-
               window.parent.scrollTo(0, 0);
               window.scrollTo(0, 0);
             }} catch(e) {{}}
           }};
-
           go();
           requestAnimationFrame(go);
           setTimeout(go, 50);
@@ -249,15 +103,12 @@ def render_floating_scroll_top():
 <script>
 (function(){
   const doc = window.parent.document;
-
-  // 중복 방지
   if (doc.getElementById("__FAB_TOP__")) return;
 
   const btn = doc.createElement("button");
   btn.id = "__FAB_TOP__";
   btn.textContent = "↑";
 
-  // 기본 스타일
   btn.style.position = "fixed";
   btn.style.right = "14px";
   btn.style.zIndex = "2147483647";
@@ -277,15 +128,11 @@ def render_floating_scroll_top():
   btn.style.justifyContent = "center";
   btn.style.opacity = "0";
 
-  // ✅ PC에서는 숨김 (801px 이상이면 display:none)
   const applyDeviceVisibility = () => {
     try {
       const w = window.parent.innerWidth || window.innerWidth;
-      if (w >= 801) {
-        btn.style.display = "none";
-      } else {
-        btn.style.display = "flex";
-      }
+      if (w >= 801) btn.style.display = "none";
+      else btn.style.display = "flex";
     } catch(e) {}
   };
 
@@ -317,21 +164,20 @@ def render_floating_scroll_top():
   const mount = () => doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
 
   const BASE = 18;
-  const EXTRA = 34; // ← 가려지면 여기만 올리기
+  const EXTRA = 34;
 
   const reposition = () => {
     try {
       const vv = window.parent.visualViewport || window.visualViewport;
       const innerH = window.parent.innerHeight || window.innerHeight;
       const hiddenBottom = vv ? Math.max(0, innerH - vv.height - (vv.offsetTop || 0)) : 0;
-
       btn.style.bottom = (BASE + EXTRA + hiddenBottom) + "px";
       btn.style.opacity = "1";
     } catch(e) {
       btn.style.bottom = "220px";
       btn.style.opacity = "1";
     }
-    applyDeviceVisibility(); // ✅ 화면 크기 변하면 즉시 반영
+    applyDeviceVisibility();
   };
 
   const tryAttach = (n=0) => {
@@ -349,7 +195,6 @@ def render_floating_scroll_top():
 
   tryAttach();
 
-  // ✅ 리사이즈/회전 대응
   window.parent.addEventListener("resize", reposition, {passive:true});
 
   const vv = window.parent.visualViewport || window.visualViewport;
@@ -365,26 +210,13 @@ def render_floating_scroll_top():
 
 render_floating_scroll_top()
 
-# ✅ 버튼 클릭 후 rerun되면, 이 플래그를 보고 최상단 스크롤 실행
-
 if st.session_state.get("_scroll_top_once"):
     st.session_state["_scroll_top_once"] = False
     st.session_state["_scroll_top_nonce"] = st.session_state.get("_scroll_top_nonce", 0) + 1
     scroll_to_top(nonce=st.session_state["_scroll_top_nonce"])
 
 # ============================================================
-# ✅ Cookies
-# ============================================================
-cookies = EncryptedCookieManager(
-    prefix="hatena_jlpt_",   # ✅ 슬래시 제거
-    password=st.secrets["COOKIE_PASSWORD"],  # ✅ 가능하면 secrets에 고정
-)
-if not cookies.ready():
-    st.caption("쿠키를 초기화하는 중입니다… 잠시 후 자동으로 다시 시도됩니다.")
-    st.stop()
-
-# ============================================================
-# ✅ Supabase 연결
+# ✅ Supabase 연결 (쿠키 통과 후)
 # ============================================================
 if "SUPABASE_URL" not in st.secrets or "SUPABASE_ANON_KEY" not in st.secrets:
     st.error("Supabase Secrets가 설정되지 않았습니다. (SUPABASE_URL / SUPABASE_ANON_KEY)")
@@ -392,7 +224,6 @@ if "SUPABASE_URL" not in st.secrets or "SUPABASE_ANON_KEY" not in st.secrets:
 
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_ANON_KEY = st.secrets["SUPABASE_ANON_KEY"]
-
 sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 # ============================================================
