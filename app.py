@@ -1486,44 +1486,91 @@ def render_my_dashboard():
 # ============================================================
 # ✅ 퀴즈 로직: (마이페이지에서도 쓰므로 라우팅보다 위에 있어야 함)
 # ============================================================
-def make_question(row: pd.Series, qtype: str, base_pool_for_reading: pd.DataFrame, distractor_pool: pd.DataFrame) -> dict:
+def make_question(
+    row: pd.Series,
+    qtype: str,
+    base_pool_for_reading: pd.DataFrame,
+    distractor_pool: pd.DataFrame,
+) -> dict:
     jp = row.get("jp_word")
     rd = row.get("reading")
     mn = row.get("meaning")
+    pos = str(row.get("pos", "") or "").strip().lower()
 
     display_word = jp if pd.notna(jp) and str(jp).strip() != "" else rd
+
+    # ✅ (핵심) 혼합 품사에서도 보기(오답 후보)는 "해당 pos 안에서만" 뽑도록 풀을 필터링
+    def _filter_pos(df: pd.DataFrame) -> pd.DataFrame:
+        if (not pos) or (df is None) or ("pos" not in df.columns):
+            return df
+        return df[df["pos"].astype(str).str.strip().str.lower() == pos].copy()
+
+    base_pos = _filter_pos(base_pool_for_reading)
+    dist_pos = _filter_pos(distractor_pool)
+
+    def _enough_candidates(cands) -> bool:
+        try:
+            return len(cands) >= 3
+        except Exception:
+            return False
 
     if qtype == "reading":
         prompt = f"{display_word}의 발음은?"
         correct = row["reading"]
+
+        # ✅ pos 내부에서 먼저 후보 생성
         candidates = (
-            base_pool_for_reading.loc[base_pool_for_reading["reading"] != correct, "reading"]
+            base_pos.loc[base_pos["reading"] != correct, "reading"]
             .dropna().drop_duplicates().tolist()
         )
+
+        # ✅ 부족하면 전체 풀로 fallback
+        if not _enough_candidates(candidates):
+            candidates = (
+                base_pool_for_reading.loc[base_pool_for_reading["reading"] != correct, "reading"]
+                .dropna().drop_duplicates().tolist()
+            )
 
     elif qtype == "meaning":
         prompt = f"{display_word}의 뜻은?"
         correct = row["meaning"]
+
         candidates = (
-            distractor_pool.loc[distractor_pool["meaning"] != correct, "meaning"]
+            dist_pos.loc[dist_pos["meaning"] != correct, "meaning"]
             .dropna().drop_duplicates().tolist()
         )
+        if not _enough_candidates(candidates):
+            candidates = (
+                distractor_pool.loc[distractor_pool["meaning"] != correct, "meaning"]
+                .dropna().drop_duplicates().tolist()
+            )
 
     elif qtype == "kr2jp":
         prompt = f"'{mn}'의 일본어는?"
         correct = str(row["jp_word"]).strip()
+
+        # ✅ pos 내부에서 먼저 후보 생성
         candidates = (
-            base_pool_for_reading.loc[base_pool_for_reading["jp_word"] != correct, "jp_word"]
+            base_pos.loc[base_pos["jp_word"] != correct, "jp_word"]
             .dropna().astype(str).str.strip()
         )
         candidates = [x for x in candidates.tolist() if x]
         candidates = list(dict.fromkeys(candidates))
 
+        # ✅ 부족하면 전체 풀로 fallback
+        if not _enough_candidates(candidates):
+            candidates = (
+                base_pool_for_reading.loc[base_pool_for_reading["jp_word"] != correct, "jp_word"]
+                .dropna().astype(str).str.strip()
+            )
+            candidates = [x for x in candidates.tolist() if x]
+            candidates = list(dict.fromkeys(candidates))
+
     else:
         raise ValueError("Unknown qtype")
 
     if len(candidates) < 3:
-        st.error(f"오답 후보 부족: 유형={qtype}, 후보={len(candidates)}개")
+        st.error(f"오답 후보 부족: 유형={qtype}, pos={pos}, 후보={len(candidates)}개")
         st.stop()
 
     wrongs = random.sample(candidates, 3)
@@ -1534,10 +1581,10 @@ def make_question(row: pd.Series, qtype: str, base_pool_for_reading: pd.DataFram
         "prompt": prompt,
         "choices": choices,
         "correct_text": correct,
-        "jp_word": row["jp_word"],
-        "reading": row["reading"],
-        "meaning": row["meaning"],
-        "pos": row["pos"],
+        "jp_word": row.get("jp_word"),
+        "reading": row.get("reading"),
+        "meaning": row.get("meaning"),
+        "pos": row.get("pos"),
         "qtype": qtype,
     }
 
