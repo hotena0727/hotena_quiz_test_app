@@ -380,7 +380,7 @@ cookies = EncryptedCookieManager(
     password=st.secrets["COOKIE_PASSWORD"],  # ✅ 가능하면 secrets에 고정
 )
 if not cookies.ready():
-    st.info("잠깐만요! 곧 시작할게요")
+    st.info("쿠키를 초기화하는 중입니다… 잠시 후 자동으로 다시 시도됩니다.")
     st.stop()
 
 # ============================================================
@@ -590,7 +590,7 @@ def mark_progress_dirty():
     if (sb_authed_local is None) or (u is None):
         return
 
-    # ✅ 너무 자주 저장하지 않게 10.0초 쿨다운(원하면 0.3~2초로 조절)
+    # ✅ 너무 자주 저장하지 않게 1.0초 쿨다운(원하면 0.3~2초로 조절)
     now = time.time()
     last = st.session_state.get("_last_progress_save_ts", 0.0)
     if now - last < 10.0:
@@ -610,28 +610,25 @@ def mark_progress_dirty():
 # ============================================================
 def start_quiz_state(quiz_list: list, qtype: str, clear_wrongs: bool = True):
     st.session_state.quiz_version = int(st.session_state.get("quiz_version", 0)) + 1
+
     st.session_state.quiz_type = qtype
 
+    # ✅ quiz_list 방어 (None/타입 이상)
     if not isinstance(quiz_list, list):
         quiz_list = []
 
     st.session_state.quiz = quiz_list
     st.session_state.answers = [None] * len(quiz_list)
 
-    # ✅✅✅ "새 시험 시작"은 제출/결과 상태를 무조건 끊는다
-    st.session_state.submitted = False
 
-    # ✅ 제출 후 저장 플래그도 리셋 (다음 제출이 정상 저장되게)
+    st.session_state.submitted = False
     st.session_state.saved_this_attempt = False
     st.session_state.stats_saved_this_attempt = False
     st.session_state.session_stats_applied_this_attempt = False
 
-    # ✅✅✅ 오답은 '오답 다시풀기'에서만 의미가 있음 → 새 시험 시작이면 끊기
     if clear_wrongs:
         st.session_state.wrong_list = []
 
-    # (선택) 제출 후 노출되는 UI가 더 있다면 여기서 같이 끊기
-    # 예: 결과 화면에서 따로 쓰는 플래그가 있다면 여기에 추가
 # ============================================================
 # ✅ 유틸: JWT 만료 감지 + 세션 갱신 + DB 호출 래퍼
 # ============================================================
@@ -791,8 +788,7 @@ def save_attempt_to_db(sb_authed, user_id, user_email, level, quiz_type, quiz_le
         "user_id": user_id,
         "user_email": user_email,
         "level": level,
-        "pos_mode": st.session_state.get("pos_mode", "i_adj"),  # ✅ 품사 모드
-        "quiz_type": quiz_type,                                  # ✅ 유형 컬럼이 DB에 있으면 추천
+        "pos_mode": quiz_type,
         "quiz_len": int(quiz_len),
         "score": int(score),
         "wrong_count": int(len(wrong_list)),
@@ -1255,18 +1251,11 @@ def render_topcard():
         else:
             st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
 
-    def _go_my_from_top():
-        st.session_state.page = "my"
-        st.session_state["_scroll_top_once"] = True
-
+    # ✅ 마이페이지(아이콘 + 텍스트)  ← 규격 통일
     with r_my:
-        st.button(
-            "📌 마이페이지",
-            use_container_width=True,
-            help="내 학습 기록/오답 TOP10 보기",
-            key="topcard_btn_nav_my",
-            on_click=_go_my_from_top,   # ✅ on_click로 전환
-        )
+        if st.button("📌 마이페이지", use_container_width=True, help="내 학습 기록/오답 TOP10 보기", key="topcard_btn_nav_my"):
+            st.session_state.page = "my"
+            st.rerun()
 
     # ✅ 로그아웃(아이콘 + 텍스트)  ← 규격 통일
     with r_logout:
@@ -1297,37 +1286,15 @@ def render_global_nav():
         # st.markdown("### ")
         pass
 
-    def go_my_from_home():
-        st.session_state.page = "my"
-        st.session_state["_scroll_top_once"] = True   # 필요 없으면 삭제
-
-    def logout_from_home():
-        clear_auth_everywhere()
-        st.session_state["_scroll_top_once"] = True   # 필요 없으면 삭제
-
-    def _go_my():
-        st.session_state.page = "my"
-        st.session_state["_scroll_top_once"] = True
-
-    def _logout():
-        clear_auth_everywhere()
-        st.session_state["_scroll_top_once"] = True
-
     with c2:
-        st.button(
-            "📌 마이페이지",
-            use_container_width=True,
-            key="btn_global_my",     # ✅ 키 변경
-            on_click=_go_my,         # ✅ on_click로 전환 (st.rerun 제거)
-        )
+        if st.button("📌 마이페이지", use_container_width=True, key="nav_btn_my"):
+            st.session_state.page = "my"
+            st.rerun()
 
     with c3:
-        st.button(
-            "🚪 로그아웃",
-            use_container_width=True,
-            key="btn_global_logout", # ✅ 키 변경
-            on_click=_logout,        # ✅ on_click로 전환 (st.rerun 제거)
-        )
+        if st.button("🚪 로그아웃", use_container_width=True, key="nav_btn_logout"):
+            clear_auth_everywhere()
+            st.rerun()
 
     st.divider()
 
@@ -1614,6 +1581,9 @@ def go_quiz_from_home():
     st.session_state["_scroll_top_once"] = True
 
 def render_home():
+    email = getattr(st.session_state.get("user"), "email", "") or st.session_state.get("login_email", "")
+
+def render_home():
     u = st.session_state.get("user")
     email = (getattr(u, "email", None) if u else None) or st.session_state.get("login_email", "")
 
@@ -1665,20 +1635,13 @@ def render_home():
             on_click=go_quiz_from_home,
         )
 
-    def _go_my_from_home():
-        st.session_state.page = "my"
-        st.session_state["_scroll_top_once"] = True
-
     with c2:
-        st.button(
-            "📌 마이페이지",
-            use_container_width=True,
-            key="btn_home_my_only",
-            on_click=_go_my_from_home,  # ✅ on_click
-        )
+        if st.button("📌 마이페이지", use_container_width=True, key="btn_home_my"):
+            st.session_state.page = "my"
+            st.rerun()
 
     with c3:
-        if st.button("🚪 로그아웃", use_container_width=True, key="btn_home_logout_only"):  # ✅ 변경
+        if st.button("🚪 로그아웃", use_container_width=True, key="btn_home_logout"):
             clear_auth_everywhere()
             st.rerun()
 
@@ -2141,17 +2104,13 @@ with cbtn1:
     if st.button("🔄 새 문제(랜덤 10문항)", use_container_width=True, key="btn_new_random_10"):
         k_now = mastery_key()
         if st.session_state.get("mastery_done", {}).get(k_now, False):
+            # ✅ 여기서 안내 띄우지 말고, 그냥 스크롤+리런만
             st.session_state["_scroll_top_once"] = True
             st.rerun()
-
-        # ✅✅✅ 새 문제 = 결과 화면/오답 화면을 끊는다 (명시적으로)
-        st.session_state.submitted = False
-        st.session_state.wrong_list = []
 
         clear_question_widget_keys()
         new_quiz = build_quiz(st.session_state.quiz_type)
         start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
-
         st.session_state["_scroll_top_once"] = True
         st.rerun()
 
@@ -2503,15 +2462,15 @@ if st.session_state.submitted and st.session_state.wrong_list:
 
 # ✅✅✅ 다음 10문항은 "submitted면 항상" (오답 0개여도)
 if st.session_state.submitted:
-    if st.button("✅ 다음 10문항 시작하기", type="primary", use_container_width=True, key="btn_next_10"):
-        # ✅✅✅ 다음 10문항 = 새 문제 (오답 섞지 않음)
-        st.session_state.submitted = False
-        st.session_state.wrong_list = []
-
+    if st.button(
+        "✅ 다음 10문항 시작하기",
+        type="primary",
+        use_container_width=True,
+        key="btn_next_10",
+    ):
         clear_question_widget_keys()
         new_quiz = build_quiz(st.session_state.quiz_type)
         start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
-
         st.session_state["_scroll_top_once"] = True
         st.rerun()
      
