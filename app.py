@@ -92,11 +92,10 @@ div[data-baseweb="button-group"] button{
 /* ✅ 타이틀 오른쪽 환영영역(글씨 30% 감소 느낌) */
 .headbar{
   display:flex;
-  align-items:center;          /* baseline → center 로 변경 */
+  align-items:flex-end;         /* ✅ baseline → flex-end */
   justify-content:space-between;
   gap:12px;
-  margin:10px 0 16px 0;
-  flex-wrap: nowrap;           /* ✅ 무조건 한 줄 */
+  margin: 10px 0 16px 0;
 }
 
 .headtitle{
