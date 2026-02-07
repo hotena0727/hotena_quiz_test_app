@@ -1286,15 +1286,30 @@ def render_global_nav():
         # st.markdown("### ")
         pass
 
+    def go_my_from_home():
+    st.session_state.page = "my"
+    st.session_state["_scroll_top_once"] = True   # 필요 없으면 삭제
+
+    def logout_from_home():
+    clear_auth_everywhere()
+    st.session_state["_scroll_top_once"] = True   # 필요 없으면 삭제
+
     with c2:
-        if st.button("📌 마이페이지", use_container_width=True, key="nav_btn_my"):
-            st.session_state.page = "my"
-            st.rerun()
+        st.button(
+            "📌 마이페이지",
+            use_container_width=True,
+            key="btn_home_my",
+            on_click=go_my_from_home,
+        )
 
     with c3:
-        if st.button("🚪 로그아웃", use_container_width=True, key="nav_btn_logout"):
-            clear_auth_everywhere()
-            st.rerun()
+        st.button(
+            "🚪 로그아웃",
+            use_container_width=True,
+            key="btn_home_logout",
+            on_click=logout_from_home,
+        )
+
 
     st.divider()
 
