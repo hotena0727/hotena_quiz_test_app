@@ -1554,54 +1554,54 @@ def render_my_dashboard():
     # ✅ 자주 틀린 단어 TOP10
     # ------------------------------------------------------------
     st.markdown(
-    """
-    <style>
-    .top10-grid{
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      margin-top:10px;
-    }
-    .top10-card{
-      border: 1px solid rgba(120,120,120,0.25);
-      border-radius: 16px;
-      padding: 14px 14px;
-      background: rgba(255,255,255,0.02);
-    }
-    .top10-row{
-      display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
-      gap:12px;
-    }
-    .top10-title{
-      font-weight: 900;
-      font-size: 15px;
-      line-height: 1.2;
-    }
-    .top10-sub{
-      margin-top:6px;
-      opacity: .78;
-      font-size: 12px;
-    }
-    .top10-badge{
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      min-width: 42px;
-      height: 26px;
-      padding: 0 10px;
-      border-radius: 999px;
-      border: 1px solid rgba(120,120,120,0.25);
-      background: rgba(255,255,255,0.03);
-      font-weight: 900;
-      font-size: 12px;
-      white-space: nowrap;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+        """
+<style>
+.top10-grid{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  margin-top:10px;
+}
+.top10-card{
+  border: 1px solid rgba(120,120,120,0.25);
+  border-radius: 16px;
+  padding: 14px 14px;
+  background: rgba(255,255,255,0.02);
+}
+.top10-row{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+}
+.top10-title{
+  font-weight: 900;
+  font-size: 15px;
+  line-height: 1.2;
+}
+.top10-sub{
+  margin-top:6px;
+  opacity: .78;
+  font-size: 12px;
+}
+.top10-badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width: 42px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(120,120,120,0.25);
+  background: rgba(255,255,255,0.03);
+  font-weight: 900;
+  font-size: 12px;
+  white-space: nowrap;
+}
+</style>
+        """,
+        unsafe_allow_html=True,
+    )
 
     st.divider()
     st.markdown("### ❌ 자주 틀린 단어 TOP10 (최근 50회)")
@@ -1609,7 +1609,6 @@ def render_my_dashboard():
     from collections import Counter
     counter = Counter()
 
-    # ✅ DB의 최근 50회 wrong_list를 모두 합쳐 TOP10 계산
     for row in (res.data or []):
         wl = row.get("wrong_list") or []
         if isinstance(wl, list):
@@ -1624,27 +1623,24 @@ def render_my_dashboard():
 
     top10 = counter.most_common(10)
 
-    # ✅ 화면 표시
     cards = []
     for i, (w, cnt) in enumerate(top10, start=1):
         cards.append(
             f"""
-    <div class="top10-card">
-      <div class="top10-row">
-        <div>
-          <div class="top10-title">#{i} {w}</div>
-          <div class="top10-sub">최근 50회 기준</div>
-        </div>
-        <div class="top10-badge">오답 {cnt}회</div>
-      </div>
+<div class="top10-card">
+  <div class="top10-row">
+    <div>
+      <div class="top10-title">#{i} {w}</div>
+      <div class="top10-sub">최근 50회 기준</div>
     </div>
-    """
+    <div class="top10-badge">오답 {cnt}회</div>
+  </div>
+</div>
+"""
         )
 
-    st.markdown(
-        '<div class="jp top10-grid">' + "\n".join(cards) + "</div>",
-        unsafe_allow_html=True,
-    )
+    st.markdown('<div class="jp top10-grid">' + "\n".join(cards) + "</div>", unsafe_allow_html=True)
+
 
   
     # ✅ TOP10으로 시험 보기
@@ -1688,9 +1684,6 @@ def go_quiz_from_home():
 
 def nav_logout():
     clear_auth_everywhere()
-
-def render_home():
-    email = getattr(st.session_state.get("user"), "email", "") or st.session_state.get("login_email", "")
 
 def render_home():
     u = st.session_state.get("user")
