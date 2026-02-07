@@ -1394,7 +1394,11 @@ if st.session_state.get("page") != "home":
 """,
         unsafe_allow_html=True
     )
-
+def nav_to(page: str, scroll_top: bool = True):
+    st.session_state.page = page
+    if scroll_top:
+        st.session_state["_scroll_top_once"] = True
+        
     render_topcard()   # ✅✅✅ 이 줄 추가!
 
 # ✅✅ (2) 프로필 upsert / 출석 체크는 라우팅 전에 1번만
@@ -1614,11 +1618,6 @@ def go_quiz_from_home():
     reset_quiz_state_only()
     st.session_state.page = "quiz"
     st.session_state["_scroll_top_once"] = True
-
-def nav_to(page: str, scroll_top: bool = True):
-    st.session_state.page = page
-    if scroll_top:
-        st.session_state["_scroll_top_once"] = True
 
 def nav_logout():
     clear_auth_everywhere()
