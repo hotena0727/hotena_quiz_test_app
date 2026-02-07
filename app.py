@@ -381,7 +381,7 @@ cookies = EncryptedCookieManager(
 )
 if not cookies.ready():
     with st.spinner("쿠키를 초기화하는 중입니다… 잠시 후 자동으로 다시 시도됩니다.")
-    st.stop()
+        st.stop()
 
 # ============================================================
 # ✅ Supabase 연결
