@@ -1219,11 +1219,12 @@ if "pos_mode" not in st.session_state or st.session_state.get("pos_mode") not in
 if "quiz_type" not in st.session_state or st.session_state.get("quiz_type") not in available_types:
     st.session_state.quiz_type = available_types[0]
 
-# ✅ 3) title은 “복원/보정” 끝난 다음에 출력
-st.markdown(
-    '<div class="jp" style="font-size:34px; font-weight:900; line-height:1.15; margin:8px 0 12px 0;">✨ 마법의 단어장</div>',
-    unsafe_allow_html=True
-)
+# ✅ 3) title은 홈에서는 출력하지 않음 (중복 방지)
+if st.session_state.get("page") != "home":
+    st.markdown(
+        '<div class="jp" style="font-size:34px; font-weight:900; line-height:1.15; margin:8px 0 12px 0;">✨ 마법의 단어장</div>',
+        unsafe_allow_html=True
+    )
 
 # ✅✅ (2) 프로필 upsert / 출석 체크는 라우팅 전에 1번만
 if sb_authed is not None:
@@ -1490,6 +1491,9 @@ def reset_quiz_state_only():
               "session_stats_applied_this_attempt"]:
         st.session_state.pop(k, None)
 
+email = getattr(st.session_state.get("user"), "email", "") or st.session_state.get("login_email", "")
+st.markdown(f"<div class='jp' style='font-weight:900; margin:8px 0 8px 0;'>환영합니다 🙂 <span style='opacity:.7; font-weight:600;'>{email}</span></div>", unsafe_allow_html=True)
+
 def render_home():
     st.markdown("## ✨ 마법의 단어장")
 
@@ -1519,10 +1523,9 @@ def render_home():
 
     st.divider()
 
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns([5, 3, 3])
     with c1:
         if st.button("▶ 오늘의 퀴즈 시작", type="primary", use_container_width=True, key="btn_home_start"):
-            # ✅ 자동복원/진행 이어풀기 느낌 제거: 시작할 때는 항상 리셋하고 새로 생성
             reset_quiz_state_only()
             st.session_state.page = "quiz"
             st.session_state["_scroll_top_once"] = True
@@ -1531,6 +1534,11 @@ def render_home():
     with c2:
         if st.button("📌 마이페이지", use_container_width=True, key="btn_home_my"):
             st.session_state.page = "my"
+            st.rerun()
+
+    with c3:
+        if st.button("🚪 로그아웃", use_container_width=True, key="btn_home_logout"):
+            clear_auth_everywhere()
             st.rerun()
 
     # (선우님 옵션) “최근 이어서”를 살리고 싶으면 버튼을 하나 더 두면 됩니다.
