@@ -1252,11 +1252,18 @@ def render_topcard():
         else:
             st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
 
-    # ✅ 마이페이지(아이콘 + 텍스트)  ← 규격 통일
+    def _go_my_from_top():
+        st.session_state.page = "my"
+        st.session_state["_scroll_top_once"] = True
+
     with r_my:
-        if st.button("📌 마이페이지", use_container_width=True, help="내 학습 기록/오답 TOP10 보기", key="topcard_btn_nav_my"):
-            st.session_state.page = "my"
-            st.rerun()
+        st.button(
+            "📌 마이페이지",
+            use_container_width=True,
+            help="내 학습 기록/오답 TOP10 보기",
+            key="topcard_btn_nav_my",
+            on_click=_go_my_from_top,   # ✅ on_click로 전환
+        )
 
     # ✅ 로그아웃(아이콘 + 텍스트)  ← 규격 통일
     with r_logout:
@@ -1295,15 +1302,29 @@ def render_global_nav():
         clear_auth_everywhere()
         st.session_state["_scroll_top_once"] = True   # 필요 없으면 삭제
 
+    def _go_my():
+    st.session_state.page = "my"
+    st.session_state["_scroll_top_once"] = True
+
+    def _logout():
+        clear_auth_everywhere()
+        st.session_state["_scroll_top_once"] = True
+
     with c2:
-        if st.button("📌 마이페이지", use_container_width=True, key="btn_home_my"):
-            st.session_state.page = "my"
-            st.rerun()
+        st.button(
+            "📌 마이페이지",
+            use_container_width=True,
+            key="btn_global_my",     # ✅ 키 변경
+            on_click=_go_my,         # ✅ on_click로 전환 (st.rerun 제거)
+        )
 
     with c3:
-        if st.button("🚪 로그아웃", use_container_width=True, key="btn_home_logout"):
-            clear_auth_everywhere()
-            st.rerun()
+        st.button(
+            "🚪 로그아웃",
+            use_container_width=True,
+            key="btn_global_logout", # ✅ 키 변경
+            on_click=_logout,        # ✅ on_click로 전환 (st.rerun 제거)
+        )
 
     st.divider()
 
@@ -1641,10 +1662,17 @@ def render_home():
             on_click=go_quiz_from_home,
         )
 
+    def _go_my_from_home():
+        st.session_state.page = "my"
+        st.session_state["_scroll_top_once"] = True
+
     with c2:
-        if st.button("📌 마이페이지", use_container_width=True, key="btn_home_my_only"):  # ✅ 변경
-            st.session_state.page = "my"
-            st.rerun()
+        st.button(
+            "📌 마이페이지",
+            use_container_width=True,
+            key="btn_home_my_only",
+            on_click=_go_my_from_home,  # ✅ on_click
+        )
 
     with c3:
         if st.button("🚪 로그아웃", use_container_width=True, key="btn_home_logout_only"):  # ✅ 변경
