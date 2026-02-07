@@ -1258,23 +1258,38 @@ def render_topcard():
     # ✅ 관리자(아이콘 버튼)
     with r_admin:
         if is_admin():
-            if st.button("📊", use_container_width=True, help="관리자 대시보드", key="topcard_btn_nav_admin"):
-                st.session_state.page = "admin"
-                st.rerun()
+            st.button(
+                "📊",
+                use_container_width=True,
+                help="관리자 대시보드",
+                key="topcard_btn_nav_admin",
+                on_click=nav_to,
+                args=("admin",),
+            )
         else:
             st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
 
     # ✅ 마이페이지(아이콘 + 텍스트)  ← 규격 통일
     with r_my:
-        if st.button("📌 마이페이지", use_container_width=True, help="내 학습 기록/오답 TOP10 보기", key="topcard_btn_nav_my"):
-            st.session_state.page = "my"
-            st.rerun()
+        st.button(
+            "📌 마이페이지",
+            use_container_width=True,
+            help="내 학습 기록/오답 TOP10 보기",
+            key="topcard_btn_nav_my",
+            on_click=nav_to,
+            args=("my",),
+        )
 
     # ✅ 로그아웃(아이콘 + 텍스트)  ← 규격 통일
     with r_logout:
-        if st.button("🚪 로그아웃", use_container_width=True, help="로그아웃", key="topcard_btn_logout"):
-            clear_auth_everywhere()
-            st.rerun()
+        st.button(
+            "🚪 로그아웃",
+            use_container_width=True,
+            help="로그아웃",
+            key="topcard_btn_logout",
+            on_click=nav_logout,
+        )
+
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1300,14 +1315,21 @@ def render_global_nav():
         pass
 
     with c2:
-        if st.button("📌 마이페이지", use_container_width=True, key="nav_btn_my"):
-            st.session_state.page = "my"
-            st.rerun()
+        st.button(
+            "📌 마이페이지",
+            use_container_width=True,
+            key="nav_btn_my",
+            on_click=nav_to,
+            args=("my",),
+        )
 
     with c3:
-        if st.button("🚪 로그아웃", use_container_width=True, key="nav_btn_logout"):
-            clear_auth_everywhere()
-            st.rerun()
+        st.button(
+            "🚪 로그아웃",
+            use_container_width=True,
+            key="nav_btn_logout",
+            on_click=nav_logout,
+        )
 
     st.divider()
 
@@ -1593,6 +1615,14 @@ def go_quiz_from_home():
     st.session_state.page = "quiz"
     st.session_state["_scroll_top_once"] = True
 
+def nav_to(page: str, scroll_top: bool = True):
+    st.session_state.page = page
+    if scroll_top:
+        st.session_state["_scroll_top_once"] = True
+
+def nav_logout():
+    clear_auth_everywhere()
+
 def render_home():
     email = getattr(st.session_state.get("user"), "email", "") or st.session_state.get("login_email", "")
 
@@ -1649,14 +1679,21 @@ def render_home():
         )
 
     with c2:
-        if st.button("📌 마이페이지", use_container_width=True, key="btn_home_my"):
-            st.session_state.page = "my"
-            st.rerun()
+        st.button(
+            "📌 마이페이지",
+            use_container_width=True,
+            key="btn_home_my",
+            on_click=nav_to,
+            args=("my",),
+        )
 
     with c3:
-        if st.button("🚪 로그아웃", use_container_width=True, key="btn_home_logout"):
-            clear_auth_everywhere()
-            st.rerun()
+        st.button(
+            "🚪 로그아웃",
+            use_container_width=True,
+            key="btn_home_logout",
+            on_click=nav_logout,
+        )
 
     # (선우님 옵션) “최근 이어서”를 살리고 싶으면 버튼을 하나 더 두면 됩니다.
     # 아래는 '선택 복원' 옵션 예시 (원하면 활성화하세요)
