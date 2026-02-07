@@ -2382,7 +2382,6 @@ if st.session_state.submitted:
     if ratio == 1:
         st.balloons()
         st.success("🎉 완벽해요! 전부 정답입니다. 정말 잘했어요!")
-        st.caption("※ 정복 판정은 ‘더 이상 출제할 단어가 없을 때’ 자동으로 표시됩니다.")
  
     elif ratio >= 0.7:
         st.info("👍 잘하고 있어요! 조금만 더 다듬으면 완벽해질 거예요.")
