@@ -554,6 +554,19 @@ def ensure_mastery_banner_shape():
             st.session_state.mastered_words.setdefault(f"{pm}|{qt}", set())
 
 # ============================================================
+# ✅ (추가) 틀린 단어를 랜덤 출제에서 제외하는 세트 유지
+#    - 정답으로 맞히면 제외 해제(다시 랜덤에 포함)
+# ============================================================
+def ensure_excluded_wrong_words_shape():
+    if "excluded_wrong_words" not in st.session_state or not isinstance(st.session_state.excluded_wrong_words, dict):
+        st.session_state.excluded_wrong_words = {}
+
+    types = QUIZ_TYPES_ADMIN if is_admin() else QUIZ_TYPES_USER
+    for qt in types:
+        k = mastery_key(qtype=qt, pos_mode=st.session_state.get("pos_mode", "i_adj"))
+        st.session_state.excluded_wrong_words.setdefault(k, set())
+
+# ============================================================
 # ✅ (중요) 위젯 잔상(q_...) 완전 제거 유틸
 # ============================================================
 def clear_question_widget_keys():
@@ -1765,9 +1778,12 @@ def make_question(
 # ✅✅✅ [추가] 랜덤 N문항 생성 (세그먼트/새문제/세션초기화에서 공용)
 def build_quiz(qtype: str) -> list[dict]:
     ensure_pools_ready()
+    ensure_mastered_words_shape()
+    ensure_excluded_wrong_words_shape()
+
     pos_mode = st.session_state.get("pos_mode", "i_adj")
 
-    # --- 0) ✅ base를 무조건 먼저 정의 (NameError 방지 핵심) ---
+    # --- 0) ✅ base를 무조건 먼저 정의 ---
     if pos_mode == "i_adj":
         base = pool_i
     elif pos_mode == "na_adj":
@@ -1777,7 +1793,7 @@ def build_quiz(qtype: str) -> list[dict]:
     else:  # mix_adj
         base = pd.concat([pool_i, pool_na, pool_v], ignore_index=True)
 
-    # --- 1) 유형에 따라 base_for_reading / distractor_pool 결정 --- (선우님 기존 로직 그대로)
+    # --- 1) 유형에 따라 base_for_reading / distractor_pool 결정 ---
     if qtype in ["reading", "kr2jp"]:
         if pos_mode == "i_adj":
             base_for_reading = pool_i_reading
@@ -1795,27 +1811,33 @@ def build_quiz(qtype: str) -> list[dict]:
         base_for_reading = base
         distractor_pool = base
 
-    # --- 2) '맞힌 단어 제외' 키 (조합키) ---
+    # --- 2) 'blocked' = (맞힌 단어 + 틀린 단어) 모두 제외 ---
     k = mastery_key(qtype=qtype, pos_mode=st.session_state.get("pos_mode"))
-    mastered = st.session_state.get("mastered_words", {}).get(k, set())
 
-    # ✅ 공통: master 필터 함수
-    def _filter_mastered(df: pd.DataFrame) -> pd.DataFrame:
-        if not mastered:
+    mastered = st.session_state.get("mastered_words", {}).get(k, set())
+    excluded = st.session_state.get("excluded_wrong_words", {}).get(k, set())
+    blocked = set()
+    if mastered:
+        blocked |= set(mastered)
+    if excluded:
+        blocked |= set(excluded)
+
+    def _filter_blocked(df: pd.DataFrame) -> pd.DataFrame:
+        if not blocked:
             return df
         ks = (
             df["jp_word"].astype(str).str.strip().replace({"": None})
             .fillna(df["reading"].astype(str).str.strip())
         )
-        return df[~ks.isin(mastered)].copy()
+        return df[~ks.isin(blocked)].copy()
 
     # ✅✅✅ 3) mix_adj는 2:2:6 강제 (여기서 끝내고 return)
     if pos_mode == "mix_adj":
         n_i, n_na, n_v = 2, 2, 6  # N=10 기준
 
-        src_i  = _filter_mastered(pool_i_reading  if qtype in ["reading", "kr2jp"] else pool_i)
-        src_na = _filter_mastered(pool_na_reading if qtype in ["reading", "kr2jp"] else pool_na)
-        src_v  = _filter_mastered(pool_v_reading  if qtype in ["reading", "kr2jp"] else pool_v)
+        src_i  = _filter_blocked(pool_i_reading  if qtype in ["reading", "kr2jp"] else pool_i)
+        src_na = _filter_blocked(pool_na_reading if qtype in ["reading", "kr2jp"] else pool_na)
+        src_v  = _filter_blocked(pool_v_reading  if qtype in ["reading", "kr2jp"] else pool_v)
 
         # ✅ 부족하면 '정복' 처리
         if len(src_i) < n_i or len(src_na) < n_na or len(src_v) < n_v:
@@ -1832,7 +1854,7 @@ def build_quiz(qtype: str) -> list[dict]:
             ignore_index=True,
         ).sample(frac=1).reset_index(drop=True)
 
-        # distractor 풀은 혼합 전체 풀 사용
+        # distractor 풀은 혼합 전체 풀 사용 (오답 보기 생성용이므로 blocked 적용 안 함)
         base_for_q = (
             pd.concat([pool_i_reading, pool_na_reading, pool_v_reading], ignore_index=True)
             if qtype in ["reading", "kr2jp"]
@@ -1843,20 +1865,20 @@ def build_quiz(qtype: str) -> list[dict]:
         quiz = [make_question(sampled.iloc[i], qtype, base_for_q, dist_for_q) for i in range(N)]
         return quiz
 
-    # --- 4) mix_adj가 아니면: 기존 방식대로 base에서 필터 후 샘플링 ---
-    base_filtered = _filter_mastered(base)
+    # --- 4) mix_adj가 아니면: 기존 방식대로 base에서 blocked 제외 후 샘플링 ---
+    base_filtered = _filter_blocked(base)
 
     if len(base_filtered) < N:
         st.session_state.setdefault("mastery_done", {})
         st.session_state.mastery_done[k] = True
         return []
 
-    # --- 5) ✅ 실제 샘플링 + 문제 생성 + return ---
+    # --- 5) 실제 샘플링 + 문제 생성 + return ---
     if qtype in ["reading", "kr2jp"]:
-        base_for_reading_filtered = _filter_mastered(base_for_reading)
+        base_for_reading_filtered = _filter_blocked(base_for_reading)
 
         if len(base_for_reading_filtered) < N:
-            base_for_reading_filtered = base_for_reading
+            base_for_reading_filtered = base_for_reading  # 읽기풀 자체가 너무 적으면 fallback
 
         sampled = base_for_reading_filtered.sample(n=N, replace=False).reset_index(drop=True)
         base_for_q = base_for_reading
@@ -1868,8 +1890,6 @@ def build_quiz(qtype: str) -> list[dict]:
 
     quiz = [make_question(sampled.iloc[i], qtype, base_for_q, dist_for_q) for i in range(N)]
     return quiz
-
-
 
 def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
     ensure_pools_ready()
@@ -2003,6 +2023,7 @@ if "session_stats_applied_this_attempt" not in st.session_state:
     st.session_state.session_stats_applied_this_attempt = False
 
 ensure_mastered_words_shape()
+ensure_excluded_wrong_words_shape()   # ✅ 추가
 ensure_mastery_banner_shape() 
 
 if "history" not in st.session_state:
@@ -2214,7 +2235,10 @@ if st.session_state.submitted:
     show_post_ui = (SHOW_POST_SUBMIT_UI == "Y") or is_admin()
 
     ensure_mastered_words_shape()
+    ensure_excluded_wrong_words_shape()
+
     current_type = st.session_state.quiz_type
+    k_now = mastery_key()  # 현재 조합키(품사|유형)
 
     score = 0
     wrong_list = []
@@ -2228,10 +2252,14 @@ if st.session_state.submitted:
         if picked == correct:
             score += 1
             if word_key:
-                ensure_mastered_words_shape()
-                st.session_state.mastered_words.setdefault(mastery_key(), set()).add(word_key)
+                # ✅ 맞힌 단어 기록
+                st.session_state.mastered_words.setdefault(k_now, set()).add(word_key)
 
         else:
+            if word_key:
+                # ✅ 틀린 단어는 랜덤 출제에서 제외
+                st.session_state.excluded_wrong_words.setdefault(k_now, set()).add(word_key)
+
             word_display = (str(q.get("jp_word", "")).strip() or str(q.get("reading", "")).strip())
             wrong_list.append(
                 {
@@ -2240,8 +2268,8 @@ if st.session_state.submitted:
                     "내 답": picked,
                     "정답": correct,
                     "단어": word_display,
-                    "읽기": q["reading"],
-                    "뜻": q["meaning"],
+                    "읽기": q.get("reading"),
+                    "뜻": q.get("meaning"),
                     "유형": current_type,
                 }
             )
