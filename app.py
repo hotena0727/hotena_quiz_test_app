@@ -1513,50 +1513,59 @@ def render_my_dashboard():
     c2.metric("최고 점수", f"{best} / {last_total}")
     c3.metric("최근 점수", f"{last_score} / {last_total}")
 
-    # ------------------------------------------------------------
-    # ❌ 자주 틀린 단어 TOP10
-    # ------------------------------------------------------------
-    st.divider()
-    st.markdown("### ❌ 자주 틀린 단어 TOP10 (최근 50회)")
+# ------------------------------------------------------------
+# ✅ 자주 틀린 단어 TOP10
+# ------------------------------------------------------------
+st.divider()
+st.markdown("### ❌ 자주 틀린 단어 TOP10 (최근 50회)")
 
-    from collections import Counter
-    counter = Counter()
+from collections import Counter
+counter = Counter()
 
-    for row in (res.data or []):
-        wl = row.get("wrong_list") or []
-        if isinstance(wl, list):
-            for w in wl:
-                word = str(w.get("단어", "")).strip()
-                if word:
-                    counter[word] += 1
+# ✅ DB의 최근 50회 wrong_list를 모두 합쳐 TOP10 계산
+for row in (res.data or []):
+    wl = row.get("wrong_list") or []
+    if isinstance(wl, list):
+        for w in wl:
+            word = str(w.get("단어", "")).strip()
+            if word:
+                counter[word] += 1
 
-    if not counter:
-        st.caption("아직 오답 데이터가 충분하지 않습니다. 몇 번 더 풀면 TOP10이 생겨요 🙂")
-        return
+if not counter:
+    st.caption("아직 오답 데이터가 충분하지 않습니다. 몇 번 더 풀면 TOP10이 생겨요 🙂")
+    return
 
-    top10 = counter.most_common(10)
-    for i, (w, cnt) in enumerate(top10, start=1):
-        st.write(f"{i}. {w} (오답 {cnt}회)")
+top10 = counter.most_common(10)
 
-    if st.button(
-        "❌ 이 TOP10으로 시험 보기",
-        type="primary",
-        use_container_width=True,
-        key="btn_quiz_from_top10",
-    ):
-        clear_question_widget_keys()
-        weak_wrong_list = [{"단어": w} for w, _ in top10]
-        retry_quiz = build_quiz_from_wrongs(weak_wrong_list, st.session_state.quiz_type)
+# ✅ 화면 표시
+for i, (w, cnt) in enumerate(top10, start=1):
+    st.write(f"{i}. {w} (오답 {cnt}회)")
 
-        # ✅ TOP10 퀴즈는 정복 차단 로직을 타면 안 됨
-        k = mastery_key(qtype=st.session_state.quiz_type, pos_mode=st.session_state.get("pos_mode", "i_adj"))
-        st.session_state.setdefault("mastery_done", {})
-        st.session_state.mastery_done[k] = False
-  
-        start_quiz_state(retry_quiz, st.session_state.quiz_type, clear_wrongs=True)
-        st.session_state["_scroll_top_once"] = True
-        st.session_state.page = "quiz"
-        st.rerun()
+# ✅ TOP10으로 시험 보기
+if st.button(
+    "❌ 이 TOP10으로 시험 보기",
+    type="primary",
+    use_container_width=True,
+    key="btn_quiz_from_top10",
+):
+    clear_question_widget_keys()
+
+    # ✅✅✅ 핵심 수정:
+    # build_quiz_from_wrongs는 "리스트 안에 dict 형태( {'단어': ...} )"를 기대하므로
+    # TOP10을 그 형태로 만들어서 그대로 전달한다.
+    weak_wrong_list = [{"단어": w} for (w, _cnt) in top10]
+
+    retry_quiz = build_quiz_from_wrongs(weak_wrong_list, st.session_state.quiz_type)
+
+    # ✅ TOP10 퀴즈는 정복 차단 로직을 타면 안 됨
+    k = mastery_key(qtype=st.session_state.quiz_type, pos_mode=st.session_state.get("pos_mode", "i_adj"))
+    st.session_state.setdefault("mastery_done", {})
+    st.session_state.mastery_done[k] = False
+
+    start_quiz_state(retry_quiz, st.session_state.quiz_type, clear_wrongs=True)
+    st.session_state["_scroll_top_once"] = True
+    st.session_state.page = "quiz"
+    st.rerun()
 
 def reset_quiz_state_only():
     """✅ 퀴즈 진행상태만 초기화 (로그인/마이페이지/출석/통계는 유지)"""
