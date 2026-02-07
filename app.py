@@ -1580,7 +1580,6 @@ def render_my_dashboard():
             f'<div class="jp">{i}. {w} (오답 {cnt}회)</div>',
             unsafe_allow_html=True
         )
-        st.write(f"{i}. {w} (오답 {cnt}회)")
   
     # ✅ TOP10으로 시험 보기
     if st.button(
