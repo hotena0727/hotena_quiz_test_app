@@ -92,22 +92,30 @@ div[data-baseweb="button-group"] button{
 /* ✅ 타이틀 오른쪽 환영영역(글씨 30% 감소 느낌) */
 .headbar{
   display:flex;
-  align-items:baseline;
+  align-items:center;          /* baseline → center 로 변경 */
   justify-content:space-between;
   gap:12px;
   margin:8px 0 6px 0;
+  flex-wrap: nowrap;           /* ✅ 무조건 한 줄 */
 }
+
 .headtitle{
   font-size:34px;
   font-weight:900;
   line-height:1.15;
+  white-space: nowrap;         /* ✅ 타이틀도 줄바꿈 방지 */
 }
+
 .headhello{
-  font-size: 13px;        /* 기존 13 기준이면 더 줄이고 싶으면 12 */
+  font-size: 13px;
   font-weight:700;
   opacity:.88;
   white-space: nowrap;
+  overflow: hidden;            /* ✅ 길면 말줄임 */
+  text-overflow: ellipsis;     /* ✅ 길면 ... */
+  max-width: 52%;              /* ✅ 오른쪽 영역 폭 제한 */
 }
+
 .headhello .mail{
   font-weight:600;
   opacity:.75;
@@ -1522,11 +1530,17 @@ def reset_quiz_state_only():
 def render_home():
     email = getattr(st.session_state.get("user"), "email", "") or st.session_state.get("login_email", "")
 
-    st.markdown("## ✨ 마법의 단어장")
+def render_home():
+    u = st.session_state.get("user")
+    email = (getattr(u, "email", None) if u else None) or st.session_state.get("login_email", "")
 
-    # ✅ 타이틀 아래로 이동
     st.markdown(
-        f"<div class='jp' style='font-weight:900; margin:6px 0 10px 0;'>환영합니다 🙂 <span style='opacity:.7; font-weight:600;'>{email}</span></div>",
+        f"""
+<div class="jp headbar">
+  <div class="headtitle">✨ 마법의 단어장</div>
+  <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
+</div>
+""",
         unsafe_allow_html=True
     )
 
