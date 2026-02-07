@@ -200,20 +200,6 @@ def mastery_key(qtype: str | None = None, pos_mode: str | None = None) -> str:
     pm = pos_mode or st.session_state.get("pos_mode", "i_adj")
     return f"{pm}|{qt}"
 
-
-# ============================================================
-# ✅ Cookies
-# ============================================================
-cookies = EncryptedCookieManager(
-    prefix="hatena_jlpt_",   # ✅ 슬래시 제거
-    password=st.secrets["COOKIE_PASSWORD"],  # ✅ 가능하면 secrets에 고정
-)
-if not cookies.ready():
-    st.caption("쿠키를 초기화하는 중입니다… 잠시 후 자동으로 다시 시도됩니다.")
-    st.stop()
-
-
-
 def scroll_to_top(nonce: int = 0):
     components.html(
         f"""
@@ -385,6 +371,17 @@ if st.session_state.get("_scroll_top_once"):
     st.session_state["_scroll_top_once"] = False
     st.session_state["_scroll_top_nonce"] = st.session_state.get("_scroll_top_nonce", 0) + 1
     scroll_to_top(nonce=st.session_state["_scroll_top_nonce"])
+
+# ============================================================
+# ✅ Cookies
+# ============================================================
+cookies = EncryptedCookieManager(
+    prefix="hatena_jlpt_",   # ✅ 슬래시 제거
+    password=st.secrets["COOKIE_PASSWORD"],  # ✅ 가능하면 secrets에 고정
+)
+if not cookies.ready():
+    st.caption("쿠키를 초기화하는 중입니다… 잠시 후 자동으로 다시 시도됩니다.")
+    st.stop()
 
 # ============================================================
 # ✅ Supabase 연결
