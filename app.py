@@ -1446,6 +1446,12 @@ def render_my_dashboard():
         clear_question_widget_keys()
         weak_wrong_list = [{"단어": w} for w, _ in top10]
         retry_quiz = build_quiz_from_wrongs(weak_wrong_list, st.session_state.quiz_type)
+
+        # ✅ TOP10 퀴즈는 정복 차단 로직을 타면 안 됨
+        k = mastery_key(qtype=st.session_state.quiz_type, pos_mode=st.session_state.get("pos_mode", "i_adj"))
+        st.session_state.setdefault("mastery_done", {})
+        st.session_state.mastery_done[k] = False
+  
         start_quiz_state(retry_quiz, st.session_state.quiz_type, clear_wrongs=True)
         st.session_state["_scroll_top_once"] = True
         st.session_state.page = "quiz"
