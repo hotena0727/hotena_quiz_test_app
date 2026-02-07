@@ -1287,12 +1287,12 @@ def render_global_nav():
         pass
 
     def go_my_from_home():
-    st.session_state.page = "my"
-    st.session_state["_scroll_top_once"] = True   # 필요 없으면 삭제
+        st.session_state.page = "my"
+        st.session_state["_scroll_top_once"] = True   # 필요 없으면 삭제
 
     def logout_from_home():
-    clear_auth_everywhere()
-    st.session_state["_scroll_top_once"] = True   # 필요 없으면 삭제
+        clear_auth_everywhere()
+        st.session_state["_scroll_top_once"] = True   # 필요 없으면 삭제
 
     with c2:
         st.button(
