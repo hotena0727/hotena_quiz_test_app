@@ -1504,6 +1504,14 @@ def make_question(row: pd.Series, qtype: str, base_pool_for_reading: pd.DataFram
     elif qtype == "meaning":
         prompt = f"{display_word}의 뜻은?"
         correct = row["meaning"]
+        pos = row.get("pos")
+        distractor_pool = get_distractor_pool_by_pos(pos, qtype)
+
+        candidates = (
+            distractor_pool.loc[distractor_pool["meaning"] != correct, "meaning"]
+            .dropna().drop_duplicates().tolist()
+        )
+
         candidates = (
             distractor_pool.loc[distractor_pool["meaning"] != correct, "meaning"]
             .dropna().drop_duplicates().tolist()
