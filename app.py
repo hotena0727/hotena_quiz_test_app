@@ -1512,11 +1512,6 @@ def make_question(row: pd.Series, qtype: str, base_pool_for_reading: pd.DataFram
             .dropna().drop_duplicates().tolist()
         )
 
-        candidates = (
-            distractor_pool.loc[distractor_pool["meaning"] != correct, "meaning"]
-            .dropna().drop_duplicates().tolist()
-        )
-
     elif qtype == "kr2jp":
         prompt = f"'{mn}'의 일본어는?"
         correct = str(row["jp_word"]).strip()
