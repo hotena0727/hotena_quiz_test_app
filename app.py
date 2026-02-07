@@ -380,8 +380,8 @@ cookies = EncryptedCookieManager(
     password=st.secrets["COOKIE_PASSWORD"],  # ✅ 가능하면 secrets에 고정
 )
 if not cookies.ready():
-    with st.spinner("쿠키를 초기화하는 중입니다… 잠시 후 자동으로 다시 시도됩니다."):
-        st.stop()
+    with st.spinner("쿠키를 초기화하는 중입니다… 잠시 후 자동으로 다시 시도됩니다.")
+    st.stop()
 
 # ============================================================
 # ✅ Supabase 연결
