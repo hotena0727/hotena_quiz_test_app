@@ -1296,21 +1296,14 @@ def render_global_nav():
         st.session_state["_scroll_top_once"] = True   # 필요 없으면 삭제
 
     with c2:
-        st.button(
-            "📌 마이페이지",
-            use_container_width=True,
-            key="btn_home_my",
-            on_click=go_my_from_home,
-        )
+        if st.button("📌 마이페이지", use_container_width=True, key="btn_home_my"):
+            st.session_state.page = "my"
+            st.rerun()
 
     with c3:
-        st.button(
-            "🚪 로그아웃",
-            use_container_width=True,
-            key="btn_home_logout",
-            on_click=logout_from_home,
-        )
-
+        if st.button("🚪 로그아웃", use_container_width=True, key="btn_home_logout"):
+            clear_auth_everywhere()
+            st.rerun()
 
     st.divider()
 
@@ -1649,12 +1642,12 @@ def render_home():
         )
 
     with c2:
-        if st.button("📌 마이페이지", use_container_width=True, key="btn_home_my"):
+        if st.button("📌 마이페이지", use_container_width=True, key="btn_home_my_only"):  # ✅ 변경
             st.session_state.page = "my"
             st.rerun()
 
     with c3:
-        if st.button("🚪 로그아웃", use_container_width=True, key="btn_home_logout"):
+        if st.button("🚪 로그아웃", use_container_width=True, key="btn_home_logout_only"):  # ✅ 변경
             clear_auth_everywhere()
             st.rerun()
 
