@@ -1560,7 +1560,7 @@ def render_home():
     st.markdown(
         f"""
 <div class="jp" style="
-  margin-top:14px;     
+  margin-top:10px;     
   border:1px solid rgba(120,120,120,0.18);
   border-radius:18px; padding:16px; background:rgba(255,255,255,0.03);">
   <div style="font-weight:900; font-size:14px; opacity:.75;">오늘의 말</div>
