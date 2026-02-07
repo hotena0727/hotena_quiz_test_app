@@ -1303,8 +1303,8 @@ def render_global_nav():
         st.session_state["_scroll_top_once"] = True   # 필요 없으면 삭제
 
     def _go_my():
-    st.session_state.page = "my"
-    st.session_state["_scroll_top_once"] = True
+        st.session_state.page = "my"
+        st.session_state["_scroll_top_once"] = True
 
     def _logout():
         clear_auth_everywhere()
