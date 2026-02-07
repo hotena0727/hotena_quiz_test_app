@@ -1550,15 +1550,16 @@ def render_my_dashboard():
     ):
         clear_question_widget_keys()
 
-        # ✅✅✅ 핵심 수정:
-        # build_quiz_from_wrongs는 "리스트 안에 dict 형태( {'단어': ...} )"를 기대하므로
-        # TOP10을 그 형태로 만들어서 그대로 전달한다.
+        # ✅ TOP10 -> build_quiz_from_wrongs 입력 형태로 변환
         weak_wrong_list = [{"단어": w} for (w, _cnt) in top10]
+
+        # ✅✅ 핵심: 섞인 TOP10이면 무조건 mix로 출제
+        st.session_state.pos_mode = "mix_adj"
 
         retry_quiz = build_quiz_from_wrongs(weak_wrong_list, st.session_state.quiz_type)
 
-        # ✅ TOP10 퀴즈는 정복 차단 로직을 타면 안 됨
-        k = mastery_key(qtype=st.session_state.quiz_type, pos_mode=st.session_state.get("pos_mode", "i_adj"))
+        # ✅ 정복 차단 해제
+        k = mastery_key(qtype=st.session_state.quiz_type, pos_mode=st.session_state.get("pos_mode", "mix_adj"))
         st.session_state.setdefault("mastery_done", {})
         st.session_state.mastery_done[k] = False
 
