@@ -1554,7 +1554,6 @@ def render_my_dashboard():
     # ✅ 자주 틀린 단어 TOP10
     # ------------------------------------------------------------
     st.divider()
-    st.markdown('<div class="jp">', unsafe_allow_html=True)
     st.markdown("### ❌ 자주 틀린 단어 TOP10 (최근 50회)")
 
     from collections import Counter
@@ -1574,7 +1573,7 @@ def render_my_dashboard():
         return
 
     top10 = counter.most_common(10)
-    st.markdown('</div>', unsafe_allow_html=True)
+
     # ✅ 화면 표시
     for i, (w, cnt) in enumerate(top10, start=1):
         st.write(f"{i}. {w} (오답 {cnt}회)")
