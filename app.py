@@ -1360,6 +1360,8 @@ if st.session_state.get("page") != "home":
         unsafe_allow_html=True
     )
 
+    render_topcard()   # ✅✅✅ 이 줄 추가!
+
 # ✅✅ (2) 프로필 upsert / 출석 체크는 라우팅 전에 1번만
 if sb_authed is not None:
     ensure_profile(sb_authed, user)
