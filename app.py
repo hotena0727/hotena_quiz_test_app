@@ -1193,7 +1193,7 @@ require_login()
 # ✅ page 기본값 + 허용 페이지 검증(중요: quiz 포함)
 ALLOWED_PAGES = {"home", "quiz", "my", "admin"}
 
-
+if "page" not in st.session_state:
     st.session_state.page = "home"
 
 if st.session_state.get("page") not in ALLOWED_PAGES:
