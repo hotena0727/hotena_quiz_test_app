@@ -1266,6 +1266,39 @@ def render_topcard():
     st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================
+# ✅ 공통 네비(quiz/my/admin에서 보이는 마이페이지/로그아웃)
+# ============================================================
+def render_global_nav():
+    # 로그인 상태에서만 노출
+    u = st.session_state.get("user")
+    if not u:
+        return
+
+    # home에서는 이미 버튼이 따로 있으니(원하면 home에도 노출 가능)
+    if st.session_state.get("page") == "home":
+        return
+
+    c1, c2, c3 = st.columns([6, 2, 2], vertical_alignment="center")
+
+    with c1:
+        # 타이틀은 이미 headbar로 렌더링 중이면 여기선 생략 가능
+        # (원하면 주석 해제)
+        # st.markdown("### ")
+        pass
+
+    with c2:
+        if st.button("📌 마이페이지", use_container_width=True, key="nav_btn_my"):
+            st.session_state.page = "my"
+            st.rerun()
+
+    with c3:
+        if st.button("🚪 로그아웃", use_container_width=True, key="nav_btn_logout"):
+            clear_auth_everywhere()
+            st.rerun()
+
+    st.divider()
+
+# ============================================================
 # ✅ 앱 시작: refresh → 로그인 강제 → progress 복원 → 기본값 보정 → title
 #    + (중요) available_types 항상 정의
 #    + (중요) 프로필/출석은 라우팅 전에 실행
