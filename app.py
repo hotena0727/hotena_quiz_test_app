@@ -1490,37 +1490,41 @@ def make_question(row: pd.Series, qtype: str, base_pool_for_reading: pd.DataFram
     jp = row.get("jp_word")
     rd = row.get("reading")
     mn = row.get("meaning")
+    pos = row.get("pos")
 
     display_word = jp if pd.notna(jp) and str(jp).strip() != "" else rd
 
+    # ✅ 혼합에서도 '보기 품사 고정'을 위해, pos 기반 풀을 사용
+    #    (reading/kr2jp는 "표기 있는 단어" 풀 사용, meaning은 전체 풀 사용)
+    base_pos_pool = get_distractor_pool_by_pos(pos, qtype)  # qtype에 따라 reading용/전체용 선택되게
+
     if qtype == "reading":
         prompt = f"{display_word}의 발음은?"
-        correct = row["reading"]
+        correct = str(row["reading"]).strip()
+
         candidates = (
-            base_pool_for_reading.loc[base_pool_for_reading["reading"] != correct, "reading"]
-            .dropna().drop_duplicates().tolist()
+            base_pos_pool.loc[base_pos_pool["reading"] != correct, "reading"]
+            .dropna().astype(str).str.strip().drop_duplicates().tolist()
         )
 
     elif qtype == "meaning":
         prompt = f"{display_word}의 뜻은?"
-        correct = row["meaning"]
-        pos = row.get("pos")
-        distractor_pool = get_distractor_pool_by_pos(pos, qtype)
+        correct = str(row["meaning"]).strip()
 
         candidates = (
-            distractor_pool.loc[distractor_pool["meaning"] != correct, "meaning"]
-            .dropna().drop_duplicates().tolist()
+            base_pos_pool.loc[base_pos_pool["meaning"] != correct, "meaning"]
+            .dropna().astype(str).str.strip().drop_duplicates().tolist()
         )
 
     elif qtype == "kr2jp":
         prompt = f"'{mn}'의 일본어는?"
         correct = str(row["jp_word"]).strip()
+
         candidates = (
-            base_pool_for_reading.loc[base_pool_for_reading["jp_word"] != correct, "jp_word"]
-            .dropna().astype(str).str.strip()
+            base_pos_pool.loc[base_pos_pool["jp_word"] != correct, "jp_word"]
+            .dropna().astype(str).str.strip().drop_duplicates().tolist()
         )
-        candidates = [x for x in candidates.tolist() if x]
-        candidates = list(dict.fromkeys(candidates))
+        candidates = [x for x in candidates if x]  # 빈값 제거
 
     else:
         raise ValueError("Unknown qtype")
@@ -1537,10 +1541,10 @@ def make_question(row: pd.Series, qtype: str, base_pool_for_reading: pd.DataFram
         "prompt": prompt,
         "choices": choices,
         "correct_text": correct,
-        "jp_word": row["jp_word"],
-        "reading": row["reading"],
-        "meaning": row["meaning"],
-        "pos": row["pos"],
+        "jp_word": row.get("jp_word"),
+        "reading": row.get("reading"),
+        "meaning": row.get("meaning"),
+        "pos": row.get("pos"),
         "qtype": qtype,
     }
 
