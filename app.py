@@ -2426,9 +2426,10 @@ if st.session_state.submitted and st.session_state.wrong_list:
 
         st.markdown(
             f"""
-        <div class="wrong-card">
-          <div class="wrong-top">
-            <div>
+        <div class="jp">
+          <div class="wrong-card">
+            <div class="wrong-top">
+              <div>
               <div class="wrong-title">Q{no}. {word}</div>
               <div class="wrong-sub">{qtext} · 유형: {mode}</div>
             </div>
