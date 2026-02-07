@@ -1176,6 +1176,58 @@ def render_naver_talk():
 """,
         unsafe_allow_html=True,
     )
+# ============================================================
+# ✅ 상단 헤더 (카드형) - 균형형: 버튼 규격 통일(아이콘+텍스트)
+#    순서: 관리자 / 마이페이지 / 로그아웃
+# ============================================================
+def render_topcard():
+    u = st.session_state.get("user")
+    if not u:
+        return
+
+    email = getattr(u, "email", None) or st.session_state.get("login_email", "")
+
+    st.markdown('<div class="topcard">', unsafe_allow_html=True)
+
+    # ✅ 버튼 폭 균형(마이페이지/로그아웃을 같은 “텍스트 버튼” 취급)
+    left, r_admin, r_my, r_logout = st.columns(
+        [6.0, 1.2, 2.4, 2.4],
+        vertical_alignment="center"
+    )
+
+    with left:
+        st.markdown(
+            f"""
+<div class="topline">
+  <span class="topwelcome">환영합니다 🙂</span>
+  <span class="topemail">{email}</span>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+
+    # ✅ 관리자(아이콘 버튼)
+    with r_admin:
+        if is_admin():
+            if st.button("📊", use_container_width=True, help="관리자 대시보드", key="topcard_btn_nav_admin"):
+                st.session_state.page = "admin"
+                st.rerun()
+        else:
+            st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
+
+    # ✅ 마이페이지(아이콘 + 텍스트)  ← 규격 통일
+    with r_my:
+        if st.button("📌 마이페이지", use_container_width=True, help="내 학습 기록/오답 TOP10 보기", key="topcard_btn_nav_my"):
+            st.session_state.page = "my"
+            st.rerun()
+
+    # ✅ 로그아웃(아이콘 + 텍스트)  ← 규격 통일
+    with r_logout:
+        if st.button("🚪 로그아웃", use_container_width=True, help="로그아웃", key="topcard_btn_logout"):
+            clear_auth_everywhere()
+            st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================
 # ✅ 앱 시작: refresh → 로그인 강제 → progress 복원 → 기본값 보정 → title
@@ -1244,60 +1296,6 @@ if sb_authed is not None:
 else:
     st.caption("세션 토큰이 없습니다. (sb_authed=None) 다시 로그인해 주세요.")
     # 필요하면 st.stop()
-
-# ============================================================
-# ✅ 상단 헤더 (카드형) - 균형형: 버튼 규격 통일(아이콘+텍스트)
-#    순서: 관리자 / 마이페이지 / 로그아웃
-# ============================================================
-def render_topcard():
-    u = st.session_state.get("user")
-    if not u:
-        return
-
-    email = getattr(u, "email", None) or st.session_state.get("login_email", "")
-
-    st.markdown('<div class="topcard">', unsafe_allow_html=True)
-
-    # ✅ 버튼 폭 균형(마이페이지/로그아웃을 같은 “텍스트 버튼” 취급)
-    left, r_admin, r_my, r_logout = st.columns(
-        [6.0, 1.2, 2.4, 2.4],
-        vertical_alignment="center"
-    )
-
-    with left:
-        st.markdown(
-            f"""
-<div class="topline">
-  <span class="topwelcome">환영합니다 🙂</span>
-  <span class="topemail">{email}</span>
-</div>
-""",
-            unsafe_allow_html=True,
-        )
-
-    # ✅ 관리자(아이콘 버튼)
-    with r_admin:
-        if is_admin():
-            if st.button("📊", use_container_width=True, help="관리자 대시보드", key="topcard_btn_nav_admin"):
-                st.session_state.page = "admin"
-                st.rerun()
-        else:
-            st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
-
-    # ✅ 마이페이지(아이콘 + 텍스트)  ← 규격 통일
-    with r_my:
-        if st.button("📌 마이페이지", use_container_width=True, help="내 학습 기록/오답 TOP10 보기", key="topcard_btn_nav_my"):
-            st.session_state.page = "my"
-            st.rerun()
-
-    # ✅ 로그아웃(아이콘 + 텍스트)  ← 규격 통일
-    with r_logout:
-        if st.button("🚪 로그아웃", use_container_width=True, help="로그아웃", key="topcard_btn_logout"):
-            clear_auth_everywhere()
-            st.rerun()
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
 # ============================================================
 # ✅ 관리자 대시보드 / 마이페이지 대시보드 (반드시 라우팅보다 먼저 정의)
 # ============================================================
@@ -1489,17 +1487,16 @@ def reset_quiz_state_only():
               "session_stats_applied_this_attempt"]:
         st.session_state.pop(k, None)
 
-email = getattr(st.session_state.get("user"), "email", "") or st.session_state.get("login_email", "")
+def render_home():
+    email = getattr(st.session_state.get("user"), "email", "") or st.session_state.get("login_email", "")
 
-# ✅ 홈에서만 '환영합니다' 1줄 노출 (중복 방지)
-if st.session_state.get("page") == "home":
+    st.markdown("## ✨ 마법의 단어장")
+
+    # ✅ 타이틀 아래로 이동
     st.markdown(
-        f"<div class='jp' style='font-weight:900; margin:8px 0 8px 0;'>환영합니다 🙂 <span style='opacity:.7; font-weight:600;'>{email}</span></div>",
+        f"<div class='jp' style='font-weight:900; margin:6px 0 10px 0;'>환영합니다 🙂 <span style='opacity:.7; font-weight:600;'>{email}</span></div>",
         unsafe_allow_html=True
     )
-
-def render_home():
-    st.markdown("## ✨ 마법의 단어장")
 
     # --- 오늘의 말(랜덤) ---
     quotes = [
