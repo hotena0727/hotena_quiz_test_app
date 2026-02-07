@@ -1530,6 +1530,11 @@ def reset_quiz_state_only():
               "session_stats_applied_this_attempt"]:
         st.session_state.pop(k, None)
 
+def go_quiz_from_home():
+    reset_quiz_state_only()
+    st.session_state.page = "quiz"
+    st.session_state["_scroll_top_once"] = True
+
 def render_home():
     email = getattr(st.session_state.get("user"), "email", "") or st.session_state.get("login_email", "")
 
@@ -1577,11 +1582,13 @@ def render_home():
 
     c1, c2, c3 = st.columns([5, 3, 3])
     with c1:
-        if st.button("▶ 오늘의 퀴즈 시작", type="primary", use_container_width=True, key="btn_home_start"):
-            reset_quiz_state_only()
-            st.session_state.page = "quiz"
-            st.session_state["_scroll_top_once"] = True
-            st.rerun()
+        st.button(
+            "▶ 오늘의 퀴즈 시작",
+            type="primary",
+            use_container_width=True,
+            key="btn_home_start",
+            on_click=go_quiz_from_home,
+        )
 
     with c2:
         if st.button("📌 마이페이지", use_container_width=True, key="btn_home_my"):
