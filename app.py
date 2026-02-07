@@ -2435,13 +2435,13 @@ if st.session_state.submitted and st.session_state.wrong_list:
             <div class="tag">오답</div>
           </div>
 
-  <div class="ans-row"><div class="ans-k">내 답</div><div>{picked}</div></div>
-  <div class="ans-row"><div class="ans-k">정답</div><div><b>{correct}</b></div></div>
-  <div class="ans-row"><div class="ans-k">발음</div><div>{reading}</div></div>
-  <div class="ans-row"><div class="ans-k">뜻</div><div>{meaning}</div></div>
-</div>
-""",
-            unsafe_allow_html=True,
+          <div class="ans-row"><div class="ans-k">내 답</div><div>{picked}</div></div>
+          <div class="ans-row"><div class="ans-k">정답</div><div><b>{correct}</b></div></div>
+          <div class="ans-row"><div class="ans-k">발음</div><div>{reading}</div></div>
+          <div class="ans-row"><div class="ans-k">뜻</div><div>{meaning}</div></div>
+        </div>
+        """,
+           unsafe_allow_html=True,
         )
 
     # ✅ 버튼은 "오답노트 전체" 아래에 1번만 (항상 노출)
