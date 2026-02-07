@@ -1224,12 +1224,13 @@ if "pos_mode" not in st.session_state or st.session_state.get("pos_mode") not in
 if "quiz_type" not in st.session_state or st.session_state.get("quiz_type") not in available_types:
     st.session_state.quiz_type = available_types[0]
 
-# ✅ 3) title은 홈에서는 출력하지 않음 (중복 방지)
+# ✅ 3) title + topcard 순서: 타이틀 → (바로 아래) 환영/이메일/버튼
 if st.session_state.get("page") != "home":
     st.markdown(
-        '<div class="jp" style="font-size:34px; font-weight:900; line-height:1.15; margin:8px 0 12px 0;">✨ 마법의 단어장</div>',
+        '<div class="jp" style="font-size:34px; font-weight:900; line-height:1.15; margin:8px 0 6px 0;">✨ 마법의 단어장</div>',
         unsafe_allow_html=True
     )
+    render_topcard()  # ✅ 타이틀 아래로 이동
 
 # ✅✅ (2) 프로필 upsert / 출석 체크는 라우팅 전에 1번만
 if sb_authed is not None:
@@ -1296,9 +1297,6 @@ def render_topcard():
             st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
-
-if st.session_state.get("page") != "home":
-    render_topcard()
 
 # ============================================================
 # ✅ 관리자 대시보드 / 마이페이지 대시보드 (반드시 라우팅보다 먼저 정의)
