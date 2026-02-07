@@ -1555,51 +1555,51 @@ def render_my_dashboard():
     # ------------------------------------------------------------
     st.markdown(
     """
-<style>
-.top10-grid{
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-  margin-top:10px;
-}
-.top10-card{
-  border: 1px solid rgba(120,120,120,0.25);
-  border-radius: 16px;
-  padding: 14px 14px;
-  background: rgba(255,255,255,0.02);
-}
-.top10-row{
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap:12px;
-}
-.top10-title{
-  font-weight: 900;
-  font-size: 15px;
-  line-height: 1.2;
-}
-.top10-sub{
-  margin-top:6px;
-  opacity: .78;
-  font-size: 12px;
-}
-.top10-badge{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  min-width: 42px;
-  height: 26px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(120,120,120,0.25);
-  background: rgba(255,255,255,0.03);
-  font-weight: 900;
-  font-size: 12px;
-  white-space: nowrap;
-}
-</style>
-""",
+    <style>
+    .top10-grid{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      margin-top:10px;
+    }
+    .top10-card{
+      border: 1px solid rgba(120,120,120,0.25);
+      border-radius: 16px;
+      padding: 14px 14px;
+      background: rgba(255,255,255,0.02);
+    }
+    .top10-row{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .top10-title{
+      font-weight: 900;
+      font-size: 15px;
+      line-height: 1.2;
+    }
+    .top10-sub{
+      margin-top:6px;
+      opacity: .78;
+      font-size: 12px;
+    }
+    .top10-badge{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-width: 42px;
+      height: 26px;
+      padding: 0 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(120,120,120,0.25);
+      background: rgba(255,255,255,0.03);
+      font-weight: 900;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    </style>
+    """,
     unsafe_allow_html=True,
 )
 
