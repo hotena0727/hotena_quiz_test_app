@@ -136,6 +136,10 @@ div[data-baseweb="button-group"] button[aria-pressed="false"]{
     padding: 9px 12px !important;
     font-size: 14px !important;
   }
+
+  .headhello .mail{ display:none !important; } /* 모바일에서 이메일 숨김 */
+  .headhello{ font-size:11px; }               /* 환영문구 크기 */
+  .headtitle{ font-size:24px; }  
 }
 /* ✅ 상단 카드(환영 + 버튼들) */
 /* ✅ Topcard: 한 줄 헤더 정렬 개선 */
