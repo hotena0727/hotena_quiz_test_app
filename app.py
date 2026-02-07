@@ -1190,8 +1190,13 @@ if not ok and (cookies.get("refresh_token") or cookies.get("access_token")):
 
 require_login()
 
-# ✅ 로그인 성공 후 첫 진입은 홈으로 유도 (퀴즈 강제 진입 방지)
-if st.session_state.get("page") not in ["home", "quiz", "my", "admin"]:
+# ✅ page 기본값 + 허용 페이지 검증(중요: quiz 포함)
+ALLOWED_PAGES = {"home", "quiz", "my", "admin"}
+
+
+    st.session_state.page = "home"
+
+if st.session_state.get("page") not in ALLOWED_PAGES:
     st.session_state.page = "home"
 
 user = st.session_state.user
@@ -1291,12 +1296,6 @@ def render_topcard():
             st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
-
-# page 기본값
-# page 기본값
-# page 기본값 (앱 첫 진입은 홈으로)
-if "page" not in st.session_state:
-    st.session_state.page = "home"
 
 if st.session_state.get("page") != "home":
     render_topcard()
