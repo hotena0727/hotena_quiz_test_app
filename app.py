@@ -1590,7 +1590,7 @@ def render_home():
     st.markdown(
         f"""
 <div class="jp headbar">
-  <div class="headtitle">✨ 하테나일본어 마법의 단어장</div>
+  <div class="headtitle">✨ 마법의 단어장</div>
   <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
 </div>
 """,
@@ -1616,7 +1616,7 @@ def render_home():
   <div style="font-weight:900; font-size:14px; opacity:.75;">오늘의 말</div>
   <div style="margin-top:6px; font-weight:900; font-size:20px; line-height:1.3;">{q}</div>
   <div style="margin-top:10px; opacity:.80; font-size:13px; line-height:1.55;">
-    오늘도 10문항만 가볍게 시작해 볼까요?
+    일본어공부, 가볍게 시작해 볼까요?
   </div>
 </div>
 """,
