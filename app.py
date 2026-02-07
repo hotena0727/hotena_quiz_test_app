@@ -1298,7 +1298,8 @@ def render_topcard():
 if "page" not in st.session_state:
     st.session_state.page = "home"
 
-render_topcard()
+if st.session_state.get("page") != "home":
+    render_topcard()
 
 # ============================================================
 # ✅ 관리자 대시보드 / 마이페이지 대시보드 (반드시 라우팅보다 먼저 정의)
@@ -1492,7 +1493,13 @@ def reset_quiz_state_only():
         st.session_state.pop(k, None)
 
 email = getattr(st.session_state.get("user"), "email", "") or st.session_state.get("login_email", "")
-st.markdown(f"<div class='jp' style='font-weight:900; margin:8px 0 8px 0;'>환영합니다 🙂 <span style='opacity:.7; font-weight:600;'>{email}</span></div>", unsafe_allow_html=True)
+
+# ✅ 홈에서만 '환영합니다' 1줄 노출 (중복 방지)
+if st.session_state.get("page") == "home":
+    st.markdown(
+        f"<div class='jp' style='font-weight:900; margin:8px 0 8px 0;'>환영합니다 🙂 <span style='opacity:.7; font-weight:600;'>{email}</span></div>",
+        unsafe_allow_html=True
+    )
 
 def render_home():
     st.markdown("## ✨ 마법의 단어장")
