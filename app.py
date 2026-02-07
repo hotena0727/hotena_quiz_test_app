@@ -95,7 +95,7 @@ div[data-baseweb="button-group"] button{
   align-items:center;          /* baseline → center 로 변경 */
   justify-content:space-between;
   gap:12px;
-  margin:8px 0 6px 0;
+  margin:12px 0 6px 0;
   flex-wrap: nowrap;           /* ✅ 무조건 한 줄 */
 }
 
@@ -1560,7 +1560,9 @@ def render_home():
 
     st.markdown(
         f"""
-<div class="jp" style="border:1px solid rgba(120,120,120,0.18);
+<div class="jp" style="
+  margin-top:14px;     
+  border:1px solid rgba(120,120,120,0.18);
   border-radius:18px; padding:16px; background:rgba(255,255,255,0.03);">
   <div style="font-weight:900; font-size:14px; opacity:.75;">오늘의 말</div>
   <div style="margin-top:6px; font-weight:900; font-size:20px; line-height:1.3;">{q}</div>
