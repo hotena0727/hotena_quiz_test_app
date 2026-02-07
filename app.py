@@ -1097,7 +1097,7 @@ def require_login():
     background: rgba(255,255,255,0.03);
   ">
     <div style="font-weight:900; font-size:22px; line-height:1.15;">
-      ✨ 하테나일본어 마법의 단어장
+      ✨ 마법의 단어장
     </div>
     <div style="margin-top:6px; opacity:.85; font-size:13px; line-height:1.55;">
       하루 10문항으로 가볍게 루틴을 만들어요.<br/>
@@ -1353,7 +1353,7 @@ if st.session_state.get("page") != "home":
     st.markdown(
         f"""
 <div class="jp headbar">
-  <div class="headtitle">✨ 마법의 단어장</div>
+  <div class="headtitle">✨ 하테나일본어 마법의 단어장</div>
   <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
 </div>
 """,
