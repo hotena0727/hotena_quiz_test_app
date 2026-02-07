@@ -1170,8 +1170,8 @@ except Exception:
 st.session_state.progress_restored = True
 
 # ✅ 2) 복원 이후에만 기본값 보정 (복원값이 있으면 그대로 유지)
-if "pos_mode" not in st.session_state or st.session_state.get("pos_mode") not in POS_MODES:
-    st.session_state.pos_mode = "i_adj"
+if ("pos_mode" not in st.session_state) or (not st.session_state.get("pos_mode")):
+    st.session_state["pos_mode"] = "all"
 
 if "quiz_type" not in st.session_state or st.session_state.get("quiz_type") not in available_types:
     st.session_state.quiz_type = available_types[0]
